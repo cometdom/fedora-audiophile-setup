@@ -6,8 +6,12 @@
 #   - Fixed list of "always disable" units (bluetooth, cups, avahi, abrt*,
 #     packagekit, udisks2, fwupd*, dnf-makecache.timer, *-updatedb.timer)
 #     processed silently in batch.
-#   - One interactive prompt for firewalld (default N — keep the firewall;
-#     even an isolated audio LAN benefits from a default-deny policy).
+#   - Two interactive prompts (default Y on a dedicated audio host on a
+#     trusted LAN, consistent with the DRUP Fedora install guide):
+#       - Disable firewalld (also avoids the install.sh firewall-prompt
+#         abort the wizard now handles defensively)
+#       - Disable SELinux (SELINUX=disabled, applied immediately as
+#         permissive via setenforce + persisted in /etc/selinux/config)
 #
 # Each unit is probed for existence before action so the module is portable
 # across Fedora minimal / Server / Workstation variants. State is inspected
@@ -92,11 +96,31 @@ done
 # --- Interactive: firewalld ----------------------------------------------
 
 if _svc_exists firewalld.service && is_service_enabled firewalld.service; then
-    if ask_yes_no "Disable firewalld? (Only safe on a trusted, isolated audio LAN — default is to keep it.)" N; then
+    if ask_yes_no "Disable firewalld? (Audiophile host on a trusted LAN doesn't need it; matches the DRUP Fedora guide.)" Y; then
         log_info "Disabling firewalld.service"
         run_cmd systemctl disable --now firewalld.service
     else
         log_info "Keeping firewalld active."
+    fi
+fi
+
+# --- Interactive: SELinux ------------------------------------------------
+
+if [[ -f /etc/selinux/config ]] && command -v getenforce >/dev/null 2>&1; then
+    _selinux_current=$(getenforce 2>/dev/null || echo "Disabled")
+    if [[ "$_selinux_current" == "Disabled" ]]; then
+        log_info "SELinux is already Disabled — nothing to do."
+    elif ask_yes_no "Disable SELinux? (Zero overhead on a dedicated audio host; matches the DRUP Fedora guide.)" Y; then
+        log_info "Relaxing SELinux to permissive at runtime (setenforce 0)."
+        run_cmd setenforce 0
+        log_info "Setting SELINUX=disabled in /etc/selinux/config (effective after reboot)."
+        if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+            log_info "DRY-RUN: would sed /etc/selinux/config to SELINUX=disabled"
+        else
+            sed -i -E 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+        fi
+    else
+        log_info "Keeping SELinux ${_selinux_current}."
     fi
 fi
 

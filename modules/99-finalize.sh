@@ -68,6 +68,22 @@ else
     _fin_skip "audiophile-cpu-states.service not enabled (module 06 skipped?)"
 fi
 
+# --- firewalld + SELinux (set by module 05) ---
+if is_service_active firewalld 2>/dev/null; then
+    _fin_skip "firewalld is active (kept by user choice)"
+else
+    _fin_ok "firewalld inactive"
+fi
+if command -v getenforce >/dev/null 2>&1; then
+    _fin_se=$(getenforce 2>/dev/null || echo "?")
+    case "$_fin_se" in
+        Disabled)   _fin_ok "SELinux: Disabled (runtime + /etc/selinux/config)" ;;
+        Permissive) _fin_ok "SELinux: Permissive (effective; reboot to apply persistent config)" ;;
+        Enforcing)  _fin_skip "SELinux: Enforcing (kept by user choice)" ;;
+        *)          _fin_skip "SELinux: state '${_fin_se}'" ;;
+    esac
+fi
+
 # --- sysctl drop-ins ---
 if [[ -f /etc/sysctl.d/99-audiophile-network.conf ]]; then
     _fin_ok "socket buffer sysctl drop-in installed"
