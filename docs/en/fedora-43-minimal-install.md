@@ -92,6 +92,8 @@ What each package is for:
 
 `mokutil` and `grubby` are typically already present on a fresh Fedora minimal install — installing them again is a harmless no-op. The whole list adds well under 5 MB to disk.
 
+> If you forget any of `curl`, `mokutil`, `grubby`, or `dnf-plugins-core`, the `00-preflight` module will install them for you as a safety net (you still need `git` yourself — there's no other way to clone the repo).
+
 Or run with `--dry-run` first if you want to preview every action:
 
 ```bash

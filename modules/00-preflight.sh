@@ -1,15 +1,21 @@
 #!/bin/bash
 #
-# 00-preflight — verify hard pre-conditions before any tuning module runs.
+# 00-preflight — verify hard pre-conditions and install the small set of CLI
+# tools the wizard depends on at runtime.
 #
-# Checks (all blocking — abort setup.sh on first failure):
-#   - Distribution is Fedora 43
-#   - Architecture is x86_64
-#   - Secure Boot is OFF in firmware (kernel-rt vanilla cannot be signed)
-#   - IPv6 is enabled (REQUIRED by the Diretta protocol)
+# Order:
+#   1. Distribution is Fedora 43           (blocking)
+#   2. Architecture is x86_64              (blocking)
+#   3. Install missing wizard prerequisites (curl, mokutil, grubby,
+#      dnf-plugins-core) — safety net so the user can forget the documented
+#      'dnf install' step and still get a clean run.
+#   4. Secure Boot is OFF                  (blocking — uses mokutil from #3)
+#   5. IPv6 is enabled                     (blocking)
 #
-# Pure read-only: not gated by DRY_RUN — a dry-run that skipped preflight
-# would hide blockers the real run will hit anyway.
+# Checks 1-2 and 4-5 are blocking and not gated by DRY_RUN — a dry-run that
+# skipped them would hide blockers the real run will hit anyway. The
+# safety-net install at #3 goes through run_cmd, so DRY_RUN previews it
+# without actually installing.
 #
 
 set -euo pipefail
@@ -42,6 +48,21 @@ _preflight_check_arch() {
         exit 1
     fi
     log_info "Architecture: ${arch}"
+}
+
+_preflight_install_tools() {
+    local missing=()
+    command -v curl    >/dev/null 2>&1 || missing+=(curl)
+    command -v mokutil >/dev/null 2>&1 || missing+=(mokutil)
+    command -v grubby  >/dev/null 2>&1 || missing+=(grubby)
+    has_package dnf-plugins-core       || missing+=(dnf-plugins-core)
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        log_info "Required CLI tools already present (curl, mokutil, grubby, dnf-plugins-core)."
+        return 0
+    fi
+    log_info "Installing missing wizard prerequisites: ${missing[*]}"
+    run_cmd dnf -y install "${missing[@]}"
 }
 
 _preflight_check_secure_boot() {
@@ -88,6 +109,7 @@ _preflight_check_ipv6() {
 
 _preflight_check_os
 _preflight_check_arch
+_preflight_install_tools
 _preflight_check_secure_boot
 _preflight_check_ipv6
 
