@@ -112,21 +112,32 @@ resolve_module_path() {
 }
 
 run_all_modules() {
-    local count
-    count=$(list_modules | wc -l)
+    # Read the list FIRST into an array, then iterate with `for`. Do NOT use
+    # `while IFS= read -r module; do ... done < <(list_modules)` — that
+    # redirects stdin of the whole loop body (and every module sourced from
+    # it) to the list_modules pipe, which silently steals input from any
+    # interactive `read` inside a module. Bug fixed: previously, ask_yes_no
+    # inside a module consumed the names of the remaining modules as its
+    # "answers", looping 10x on "Please answer yes or no." and prematurely
+    # ending the run.
+    local -a modules=()
+    local m
+    while IFS= read -r m; do modules+=("$m"); done < <(list_modules)
+
+    local count=${#modules[@]}
     if [[ "$count" -eq 0 ]]; then
         log_warn "No modules found in $MODULES_DIR — nothing to do."
         return 0
     fi
 
     log_step "Running $count module(s) in order."
-    while IFS= read -r module; do
-        local path
+    local module path
+    for module in "${modules[@]}"; do
         path=$(resolve_module_path "$module")
         log_step "→ $module"
         # shellcheck source=/dev/null
         source "$path"
-    done < <(list_modules)
+    done
 }
 
 run_single_module() {

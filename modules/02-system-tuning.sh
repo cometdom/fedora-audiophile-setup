@@ -86,14 +86,10 @@ fi
 
 _tuner_path=$(_tuning_download "${_tuner_script}")
 
-log_info "Running ${_tuner_script}"
-if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-    log_info "DRY-RUN: would execute: ${_tuner_path}"
-else
-    # Direct exec (not via run_cmd) so the tuner keeps a real TTY for its
-    # own interactive prompts. The setup.sh log retains the "Running ..."
-    # marker; tuner output is shown live to the user.
-    "${_tuner_path}"
-fi
+log_info "Running ${_tuner_script} apply"
+# The tuner is NOT interactive — it takes a subcommand (apply / revert /
+# status / detect). Pass 'apply' and use run_cmd so its output goes to the
+# wizard log alongside everything else.
+run_cmd "${_tuner_path}" apply
 
 log_info "System tuning applied. The kernel cmdline change takes effect on next reboot."
