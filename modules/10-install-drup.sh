@@ -156,6 +156,37 @@ else
     log_info "Control-point NIC: ${_drup_control_iface}"
 fi
 
+# Ensure NetworkManager has a connection profile for the Diretta NIC. If it
+# doesn't, DRUP install.sh later fails to persist the MTU ("Could not find
+# NetworkManager connection for <iface>") because the NIC is unmanaged. The
+# NIC is typically link-down at this stage (Diretta target not powered yet),
+# so NM never auto-created a profile. Create a minimal one: link-local on
+# both IPv4 and IPv6 (Diretta speaks L2/raw sockets — no IP needed on the
+# Diretta link), autoconnect on so it survives reboots.
+_drup_ensure_nm_connection() {
+    local iface="$1"
+    is_service_active NetworkManager || return 0
+    if ! command -v nmcli >/dev/null 2>&1; then
+        log_warn "NM is active but nmcli is missing — cannot pre-create profile for ${iface}."
+        return 0
+    fi
+    local existing
+    existing=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null \
+        | awk -F: -v d="$iface" '$2==d {print $1; exit}')
+    if [[ -n "$existing" ]]; then
+        log_info "NM profile already present for ${iface}: '${existing}'."
+        return 0
+    fi
+    log_info "Creating minimal NM profile for ${iface} (link-local v4+v6, autoconnect)."
+    run_cmd nmcli connection add type ethernet \
+        ifname "$iface" \
+        con-name "diretta-${iface}" \
+        ipv4.method link-local \
+        ipv6.method link-local \
+        connection.autoconnect yes
+}
+_drup_ensure_nm_connection "$_drup_diretta_iface"
+
 # --- 5. git clone DRUP as the unprivileged user --------------------------
 #
 # Note: MTU prompt + persistence intentionally skipped here. DRUP's own

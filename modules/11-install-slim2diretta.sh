@@ -126,6 +126,33 @@ else
     done
 fi
 
+# Ensure NetworkManager has a profile for the Diretta NIC (otherwise
+# slim2Diretta install.sh's "Configure network" step can't persist MTU
+# via nmcli — same root cause as DRUP install.sh).
+_s2d_ensure_nm_connection() {
+    local iface="$1"
+    is_service_active NetworkManager || return 0
+    if ! command -v nmcli >/dev/null 2>&1; then
+        log_warn "NM is active but nmcli is missing — cannot pre-create profile for ${iface}."
+        return 0
+    fi
+    local existing
+    existing=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null \
+        | awk -F: -v d="$iface" '$2==d {print $1; exit}')
+    if [[ -n "$existing" ]]; then
+        log_info "NM profile already present for ${iface}: '${existing}'."
+        return 0
+    fi
+    log_info "Creating minimal NM profile for ${iface} (link-local v4+v6, autoconnect)."
+    run_cmd nmcli connection add type ethernet \
+        ifname "$iface" \
+        con-name "diretta-${iface}" \
+        ipv4.method link-local \
+        ipv6.method link-local \
+        connection.autoconnect yes
+}
+_s2d_ensure_nm_connection "$_s2d_diretta_iface"
+
 # --- 5. Optional LMS server IP -------------------------------------------
 
 echo
