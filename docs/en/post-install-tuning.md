@@ -117,7 +117,9 @@ TODO. Same as above for slim2Diretta.
 
 ### 99 — finalize
 
-TODO. Sanity-check everything is in place, print a summary of what was applied, and tell the user to reboot.
+Pure inspection — touches nothing. For each module the wizard ran, the finalizer looks for the mark that module would have left (kernel-rt installed and default boot entry, journald drop-in, fstab tmpfs entries, sysctl drop-ins, `audiophile-cpu-states.service`, tuned profile, swap status, MTU `.link` drop-in, and the renderer services). Each line prints either `[OK]` or `[--]`. A `[--]` is not a failure — it just means the matching module was skipped or its target was optional.
+
+After the summary, the user is prompted `Reboot now? [y/N]` (default N — gives you time to inspect first). The whole point of the wizard is to apply everything in one pass and reboot once; the finalizer is where that reboot happens (or where you copy the suggested verification commands and reboot yourself).
 
 ---
 
