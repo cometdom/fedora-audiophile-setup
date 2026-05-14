@@ -141,19 +141,33 @@ _s2d_ensure_nm_connection() {
         log_warn "NM is active but nmcli is missing — cannot pre-create profile for ${iface}."
         return 0
     fi
-    # Same dual check as module 10: by NAME (catches our own profile even
-    # when bound iface is down) and by GENERAL.CONNECTION on the device
-    # (catches any other profile bound to this NIC).
-    if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx "diretta-${iface}"; then
-        log_info "NM profile 'diretta-${iface}' already exists — skipping."
+    # Count profiles named "diretta-<iface>" by UUID. Earlier wizard
+    # versions could create duplicates; recover by deleting any leftovers
+    # and recreating a single clean profile.
+    local -a our_uuids=()
+    local uuid
+    while IFS= read -r uuid; do
+        [[ -n "$uuid" ]] && our_uuids+=("$uuid")
+    done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null \
+        | awk -F: -v n="diretta-${iface}" '$2==n {print $1}')
+
+    if [[ ${#our_uuids[@]} -gt 1 ]]; then
+        log_warn "Found ${#our_uuids[@]} duplicate NM profiles named 'diretta-${iface}' — deleting all and recreating one clean."
+        for uuid in "${our_uuids[@]}"; do
+            run_cmd nmcli connection delete "$uuid"
+        done
+    elif [[ ${#our_uuids[@]} -eq 1 ]]; then
+        log_info "NM profile 'diretta-${iface}' already present (UUID ${our_uuids[0]}) — skipping."
         return 0
     fi
+
     local bound
     bound=$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | cut -d: -f2)
     if [[ -n "$bound" && "$bound" != "--" ]]; then
         log_info "NM profile already bound to ${iface}: '${bound}' — skipping."
         return 0
     fi
+
     log_info "Creating minimal NM profile for ${iface} (link-local v4+v6, autoconnect)."
     run_cmd nmcli connection add type ethernet \
         ifname "$iface" \

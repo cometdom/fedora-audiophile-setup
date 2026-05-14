@@ -177,18 +177,31 @@ _drup_ensure_nm_connection() {
         return 0
     fi
 
-    # Check 1: our own named profile already exists? (`nmcli connection show`
-    # DEVICE column is unreliable for inactive connections — terse output
-    # shows '--', which breaks an awk match on the iface name. Match by NAME
-    # to catch our previously-created profile even when the iface is down.)
-    if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx "diretta-${iface}"; then
-        log_info "NM profile 'diretta-${iface}' already exists — skipping."
+    # Count profiles named "diretta-<iface>" by UUID. Earlier wizard
+    # versions could create duplicates (DEVICE column was '--' for inactive
+    # connections, missing the existence check). We now recover from any
+    # leftover duplicates: delete them all and recreate a clean one.
+    # Single-quotes preserve the iface in awk.
+    local -a our_uuids=()
+    local uuid
+    while IFS= read -r uuid; do
+        [[ -n "$uuid" ]] && our_uuids+=("$uuid")
+    done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null \
+        | awk -F: -v n="diretta-${iface}" '$2==n {print $1}')
+
+    if [[ ${#our_uuids[@]} -gt 1 ]]; then
+        log_warn "Found ${#our_uuids[@]} duplicate NM profiles named 'diretta-${iface}' — deleting all and recreating one clean."
+        for uuid in "${our_uuids[@]}"; do
+            run_cmd nmcli connection delete "$uuid"
+        done
+        # Fall through to the create step below.
+    elif [[ ${#our_uuids[@]} -eq 1 ]]; then
+        log_info "NM profile 'diretta-${iface}' already present (UUID ${our_uuids[0]}) — skipping."
         return 0
     fi
 
-    # Check 2: some other NM profile is already bound to this iface?
-    # `nmcli device show <iface>` exposes GENERAL.CONNECTION, which is the
-    # connection name currently bound, regardless of active state.
+    # No diretta-* profile, but some OTHER profile may still be bound to
+    # this iface (e.g. an auto-created one). Don't stomp on it.
     local bound
     bound=$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | cut -d: -f2)
     if [[ -n "$bound" && "$bound" != "--" ]]; then
