@@ -10,7 +10,7 @@ An interactive Bash wizard that, in a single run, applies all the system-level t
 
 - Installs the **PREEMPT_RT kernel** from the official Fedora [`@kernel-vanilla/stable` COPR](https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories)
 - Configures kernel cmdline for **CPU isolation** (`isolcpus`, `nohz_full`, `rcu_nocbs`, `irqaffinity`, optional `nosmt`)
-- Switches from NetworkManager to **systemd-networkd** (better for sustained streaming)
+- Lets you **keep NetworkManager (tuned)** or **switch to systemd-networkd** — your call. The default keeps NM (safer on SSH-only hosts, `nmtui` available); networkd is opt-in for the most deterministic stack.
 - Sets the CPU governor to **performance**, disables C-states, no_turbo
 - Pins NIC IRQs and audio threads to dedicated cores via the [DRUP tuner scripts](https://github.com/cometdom/DirettaRendererUPnP/blob/main/diretta-renderer-tuner.sh)
 - Configures **MTU 9000 (jumbo frames)** and ethtool link tuning
