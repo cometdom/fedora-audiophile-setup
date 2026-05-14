@@ -1,0 +1,118 @@
+# Post-Install Tuning Reference
+
+> **Status: skeleton.** Each module is being implemented one by one and will be documented here as we go.
+
+This document explains every tuning the wizard applies — what it changes, why it matters for audio playback, where the change is persisted, and how to revert it manually if needed.
+
+The wizard always writes a full log to `/var/log/audiophile-setup/<timestamp>.log` so you can see exactly what happened on your specific machine.
+
+## Module execution order
+
+The modules in `modules/` are numbered (`00-` through `99-`) and executed in that order. You can run a single module with `sudo ./setup.sh --only <name>`.
+
+| # | Module | What it does | Status |
+|---|--------|--------------|--------|
+| 00 | preflight | Sanity checks (Fedora 43, root, Secure Boot off, internet) | TODO |
+| 01 | kernel-rt | Install PREEMPT_RT kernel from `@kernel-vanilla/stable` COPR | TODO |
+| 02 | system-tuning | Run DRUP `diretta-renderer-tuner` for isolcpus/IRQ/slice | TODO |
+| 03 | network-systemd-networkd | Switch from NetworkManager to systemd-networkd | TODO |
+| 04 | tmpfs-disk | Make journald volatile, move `/var/log` and `/var/tmp` to tmpfs | TODO |
+| 05 | services-cleanup | Disable bluetooth/cups/etc. | TODO |
+| 06 | cpu-states | Disable C-states, no_turbo, governor=performance (runtime fallback) | TODO |
+| 07 | sysctl-network | Bump `net.core.rmem_max` / `net.core.wmem_max` for jumbo + DSD | TODO |
+| 08 | tuned-profile | Apply tuned profile geared for latency | TODO |
+| 09 | swap-disable | `swapoff -a` + `vm.swappiness=0` + remove swap from fstab | TODO |
+| 10 | install-drup | Install DirettaRendererUPnP via its own `install.sh` | TODO |
+| 11 | install-slim2diretta | Install slim2Diretta via its own `install.sh` | TODO |
+| 99 | finalize | Generate `.conf` files, enable services, print reboot instructions | TODO |
+
+---
+
+## Module details
+
+Each section below will be filled in as the corresponding module is implemented.
+
+### 00 — preflight
+
+TODO
+
+### 01 — kernel-rt
+
+TODO. Will use:
+
+```bash
+dnf -y copr enable @kernel-vanilla/stable
+dnf -y install kernel-rt kernel-rt-core kernel-rt-modules
+```
+
+Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories
+
+### 02 — system-tuning
+
+TODO. Delegates to the `diretta-renderer-tuner.sh` (or `-nosmt` variant) shipped with DirettaRendererUPnP, which handles:
+
+- Kernel cmdline (`isolcpus`, `nohz_full`, `rcu_nocbs`, `irqaffinity`, optional `nosmt`)
+- CPU governor service (`cpu-performance-diretta*.service`)
+- Systemd slice with `AllowedCPUs`
+- NIC IRQ affinity service
+- Thread round-robin distribution on isolated cores
+
+### 03 — network-systemd-networkd
+
+TODO. Switches from NetworkManager (known to cause periodic dropouts on Qobuz for some setups) to systemd-networkd. Includes:
+
+- Generate `.network` file(s) from current NM config (one per interface)
+- Disable + mask `NetworkManager.service`
+- Enable + start `systemd-networkd.service` and `systemd-resolved.service`
+- Limit `systemd-networkd-wait-online` to the primary WAN-side interface only (avoids 2-minute boot delays when a NIC is point-to-point with the Diretta target)
+
+### 04 — tmpfs-disk
+
+TODO. Two-step:
+
+1. **Journald volatile** — `Storage=volatile` in `/etc/systemd/journald.conf`. Logs live in `/run/log/journal/` (already a tmpfs) and are cleared on reboot.
+2. **Optional `/var/log` and `/var/tmp` as tmpfs** via `/etc/fstab`. Asked interactively.
+
+### 05 — services-cleanup
+
+TODO. Mask: `bluetooth.service`, `cups.service`, `firewalld.service` (optional), and other usual suspects when present.
+
+### 06 — cpu-states
+
+TODO. Cover:
+
+- Set governor to `performance` via systemd service (idempotent with what tuner already does, but explicit here for non-tuner cases)
+- `intel_pstate` no_turbo where applicable
+- C-states off on cores that aren't already isolated by `nohz_full`
+
+### 07 — sysctl-network
+
+TODO. Bump `net.core.rmem_max`, `net.core.wmem_max`, and matching default socket buffers when MTU 9000 + DSD512+ requires it. Write to `/etc/sysctl.d/99-audiophile.conf` so it survives reboot.
+
+### 08 — tuned-profile
+
+TODO. Install `tuned` if absent, apply `latency-performance` (or a custom profile we ship under `profiles/audiophile.conf`).
+
+### 09 — swap-disable
+
+TODO. `swapoff -a`, `vm.swappiness=0` in sysctl, comment out swap entries from `/etc/fstab`.
+
+### 10 — install-drup
+
+TODO. Asks if the user wants DirettaRendererUPnP, then delegates to its `install.sh` (clones the repo or uses a release tarball). Generates `/etc/default/diretta-renderer` with sane defaults using info gathered during the wizard (interface name, target ID, CPU affinity, etc.).
+
+### 11 — install-slim2diretta
+
+TODO. Same as above for slim2Diretta.
+
+### 99 — finalize
+
+TODO. Sanity-check everything is in place, print a summary of what was applied, and tell the user to reboot.
+
+---
+
+## Reverting
+
+The wizard does **not** provide a per-module rollback in v0.1 (see the [README](../../README.md) roadmap). To revert manually:
+
+TODO: write a checklist per module of how to manually undo it.
