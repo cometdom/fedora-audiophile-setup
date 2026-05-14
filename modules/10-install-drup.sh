@@ -79,30 +79,48 @@ fi
 
 # --- 4. NIC selection ----------------------------------------------------
 
-# Physical ethernet interfaces in operstate=up.
-_drup_eth_ifaces_up() {
-    local sys iface typ state
+# Physical ethernet interfaces — any link state. A Diretta target NIC
+# typically has carrier=down at install time (target not yet powered or
+# cabled), so filtering on operstate=up would hide it.
+_drup_eth_ifaces() {
+    local sys iface typ
     for sys in /sys/class/net/*; do
         iface=$(basename "$sys")
         [[ "$iface" == "lo" ]] && continue
         [[ "$(readlink -f "$sys")" == *"/devices/virtual/"* ]] && continue
         typ=$(cat "${sys}/type" 2>/dev/null || echo "")
         [[ "$typ" == "1" ]] || continue
-        state=$(cat "${sys}/operstate" 2>/dev/null || echo "")
-        [[ "$state" == "up" ]] || continue
         echo "$iface"
     done
 }
 
+# Annotate an interface with its link state and IPv4 (if any) for the menu.
+_drup_describe_iface() {
+    local iface="$1" state addr
+    state=$(cat "/sys/class/net/${iface}/operstate" 2>/dev/null || echo "?")
+    addr=$(ip -o -4 addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}')
+    if [[ -n "$addr" ]]; then
+        printf '%s  (link %s, %s)' "$iface" "$state" "$addr"
+    else
+        printf '%s  (link %s, no IPv4)' "$iface" "$state"
+    fi
+}
+
+# IMPORTANT: the menu must print to stderr — the caller captures stdout via
+# $(_drup_pick_iface ...) to get the chosen iface, so anything written to
+# stdout BEFORE the final echo would be silently swallowed (user would see
+# only "Number [1]:" without the menu above it).
 _drup_pick_iface() {
     local prompt="$1"; shift
     local choices=("$@")
-    echo
-    echo "${prompt}"
-    local i
-    for i in "${!choices[@]}"; do
-        echo "  $((i+1))) ${choices[i]}"
-    done
+    {
+        echo
+        echo "${prompt}"
+        local i
+        for i in "${!choices[@]}"; do
+            printf "  %d) %s\n" "$((i+1))" "$(_drup_describe_iface "${choices[i]}")"
+        done
+    } >&2
     while true; do
         read -r -p "Number [1]: " _pick
         _pick="${_pick:-1}"
@@ -110,13 +128,13 @@ _drup_pick_iface() {
             echo "${choices[$((_pick-1))]}"
             return 0
         fi
-        echo "Invalid choice."
+        echo "Invalid choice." >&2
     done
 }
 
-mapfile -t _drup_ifaces < <(_drup_eth_ifaces_up)
+mapfile -t _drup_ifaces < <(_drup_eth_ifaces)
 if [[ ${#_drup_ifaces[@]} -eq 0 ]]; then
-    log_error "No active physical ethernet interface — cannot configure DRUP."
+    log_error "No physical ethernet interface found — cannot configure DRUP."
     exit 1
 elif [[ ${#_drup_ifaces[@]} -eq 1 ]]; then
     _drup_diretta_iface="${_drup_ifaces[0]}"

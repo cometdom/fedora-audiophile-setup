@@ -91,24 +91,33 @@ if [[ -n "$_s2d_existing_link" ]]; then
 fi
 
 if [[ -z "$_s2d_diretta_iface" ]]; then
-    # Same NIC discovery as module 10.
-    _s2d_eth_ifaces_up() {
-        local sys iface typ state
+    # Same NIC discovery as module 10: list every physical ethernet, any link
+    # state (Diretta target NIC often has carrier=down at install time).
+    _s2d_eth_ifaces() {
+        local sys iface typ
         for sys in /sys/class/net/*; do
             iface=$(basename "$sys")
             [[ "$iface" == "lo" ]] && continue
             [[ "$(readlink -f "$sys")" == *"/devices/virtual/"* ]] && continue
             typ=$(cat "${sys}/type" 2>/dev/null || echo "")
             [[ "$typ" == "1" ]] || continue
-            state=$(cat "${sys}/operstate" 2>/dev/null || echo "")
-            [[ "$state" == "up" ]] || continue
             echo "$iface"
         done
     }
+    _s2d_describe_iface() {
+        local iface="$1" state addr
+        state=$(cat "/sys/class/net/${iface}/operstate" 2>/dev/null || echo "?")
+        addr=$(ip -o -4 addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}')
+        if [[ -n "$addr" ]]; then
+            printf '%s  (link %s, %s)' "$iface" "$state" "$addr"
+        else
+            printf '%s  (link %s, no IPv4)' "$iface" "$state"
+        fi
+    }
 
-    mapfile -t _s2d_ifaces < <(_s2d_eth_ifaces_up)
+    mapfile -t _s2d_ifaces < <(_s2d_eth_ifaces)
     if [[ ${#_s2d_ifaces[@]} -eq 0 ]]; then
-        log_error "No active physical ethernet interface — cannot configure slim2Diretta."
+        log_error "No physical ethernet interface found — cannot configure slim2Diretta."
         exit 1
     elif [[ ${#_s2d_ifaces[@]} -eq 1 ]]; then
         _s2d_diretta_iface="${_s2d_ifaces[0]}"
@@ -118,7 +127,7 @@ if [[ -z "$_s2d_diretta_iface" ]]; then
         echo "Which NIC is connected to the Diretta target (audio side)?"
         local i
         for i in "${!_s2d_ifaces[@]}"; do
-            echo "  $((i+1))) ${_s2d_ifaces[i]}"
+            printf "  %d) %s\n" "$((i+1))" "$(_s2d_describe_iface "${_s2d_ifaces[i]}")"
         done
         while true; do
             read -r -p "Number [1]: " _s2d_pick
