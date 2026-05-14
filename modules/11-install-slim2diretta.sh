@@ -64,12 +64,17 @@ if [[ -z "$_s2d_sdk" ]]; then
 fi
 log_info "Found Diretta SDK: ${_s2d_sdk}"
 
-# --- 3. Runtime prerequisite ---------------------------------------------
+# --- 3. Pre-install build prerequisites ---------------------------------
+#
+# Defensive: slim2Diretta install.sh installs the same list under its
+# "Full installation" path, but on a clean Fedora minimal that path can
+# trip on a pre-check (e.g. cmake invoked before its own dnf install).
+# Installing ahead of time makes install.sh's step a no-op.
 
-if ! has_package ethtool; then
-    log_info "Installing ethtool (used by start-slim2diretta for link tuning)"
-    run_cmd dnf -y install ethtool
-fi
+log_info "Installing slim2Diretta build prerequisites"
+run_cmd dnf -y install \
+    gcc-c++ make cmake pkg-config \
+    flac-devel ethtool
 
 # --- 4. NIC selection ----------------------------------------------------
 #
@@ -181,12 +186,20 @@ _s2d_binary="/usr/local/bin/slim2diretta"
 if [[ -x "$_s2d_binary" ]]; then
     log_info "slim2Diretta binary already installed at ${_s2d_binary} — skipping ./install.sh."
 else
+    # Clang + LTO build is reported to improve audio quality on slim2Diretta
+    # as well. install.sh auto-installs clang and lld when LLVM=1 is set.
+    _s2d_llvm_prefix=""
+    if ask_yes_no "Build slim2Diretta with Clang + LTO (recommended for sound quality)?" Y; then
+        _s2d_llvm_prefix="LLVM=1 "
+        log_info "Will pass LLVM=1 to ./install.sh (clang + lld auto-installed by install.sh)."
+    fi
+
     log_warn "About to run slim2Diretta ./install.sh as user '${_s2d_user}'."
     log_warn "Answer its interactive prompts (codec selection menu, etc.)."
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would execute as ${_s2d_user}: cd ${_s2d_dir} && ./install.sh"
+        log_info "DRY-RUN: would execute as ${_s2d_user}: cd ${_s2d_dir} && ${_s2d_llvm_prefix}./install.sh"
     else
-        sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ./install.sh"
+        sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ${_s2d_llvm_prefix}./install.sh"
     fi
 fi
 

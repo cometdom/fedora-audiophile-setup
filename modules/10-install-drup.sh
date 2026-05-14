@@ -68,12 +68,18 @@ if [[ -z "$_drup_sdk" ]]; then
 fi
 log_info "Found Diretta SDK: ${_drup_sdk}"
 
-# --- 3. Install root-side runtime prerequisite (ethtool) ----------------
+# --- 3. Pre-install build prerequisites ---------------------------------
+#
+# Defensive: DRUP install.sh runs its own 'install_base_dependencies' step
+# but some pre-flight checks (e.g. invoking a tool before the dnf install
+# block) can fail when the tool is missing. Installing the same list ahead
+# of time makes install.sh's step a no-op and avoids that class of fail.
+# ethtool stays in the list because start-renderer uses it at runtime.
 
-if ! has_package ethtool; then
-    log_info "Installing ethtool (used by start-renderer for link tuning)"
-    run_cmd dnf -y install ethtool
-fi
+log_info "Installing DRUP build prerequisites"
+run_cmd dnf -y install \
+    git gcc-c++ make pkg-config wget nasm yasm \
+    libupnp-devel ethtool
 
 # --- 4. NIC selection ----------------------------------------------------
 
@@ -208,14 +214,23 @@ _drup_binary="${_drup_dir}/bin/DirettaRendererUPnP"
 if [[ -f "$_drup_binary" ]]; then
     log_info "DRUP binary already built at ${_drup_binary} — skipping ./install.sh."
 else
+    # Clang + LTO build is reported to improve audio quality on both DRUP
+    # and slim2Diretta. install.sh auto-installs clang and lld when LLVM=1
+    # is set in the environment.
+    _drup_llvm_prefix=""
+    if ask_yes_no "Build DRUP with Clang + LTO (recommended for sound quality)?" Y; then
+        _drup_llvm_prefix="LLVM=1 "
+        log_info "Will pass LLVM=1 to ./install.sh (clang + lld auto-installed by install.sh)."
+    fi
+
     log_warn "About to run DRUP ./install.sh as user '${_drup_user}'."
     log_warn "It compiles FFmpeg from source — expect ~30 minutes. Answer its prompts."
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would execute as ${_drup_user}: cd ${_drup_dir} && ./install.sh"
+        log_info "DRY-RUN: would execute as ${_drup_user}: cd ${_drup_dir} && ${_drup_llvm_prefix}./install.sh"
     else
         # Direct exec (no run_cmd / tee pipe) so install.sh keeps its TTY.
         # -i = login shell so PATH/HOME are clean for the user.
-        sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ./install.sh"
+        sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ${_drup_llvm_prefix}./install.sh"
     fi
 fi
 
