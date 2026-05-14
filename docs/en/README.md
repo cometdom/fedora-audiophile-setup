@@ -6,6 +6,7 @@ Project documentation, English-first.
 
 - [Fedora 43 minimal install (custom)](fedora-43-minimal-install.md) — how to prepare a clean Fedora 43 base before running the installer. Covers BIOS settings, Fedora installer choices, partitioning, and minimal package selection.
 - [Post-install tuning reference](post-install-tuning.md) — what the wizard does, module by module, and why each tweak matters.
+- [Design notes](design-notes.md) — architectural decisions and conventions. Read this before adding a new module.
 
 ## Translations
 
