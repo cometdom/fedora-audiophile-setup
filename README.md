@@ -28,6 +28,13 @@ After a single reboot, your audio host is fully tuned and ready.
 - **Secure Boot disabled** in BIOS (the vanilla kernels can't be signed)
 - Root access
 - Internet connection (to fetch the kernel COPR and dependencies)
+- A handful of host packages installed before running the wizard:
+
+  ```bash
+  sudo dnf -y install git curl mokutil grubby dnf-plugins-core
+  ```
+
+  `git` lets you clone this repo; the others are used by the wizard itself (`curl` to fetch upstream scripts, `mokutil` to verify Secure Boot is off, `grubby` to set the kernel-rt as the default boot entry, `dnf-plugins-core` for `dnf copr enable`). All are tiny and idempotent — `dnf` will skip what's already present.
 
 ## Quick start
 

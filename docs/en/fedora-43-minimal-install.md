@@ -70,13 +70,27 @@ TODO: notes on multi-NIC setups (separate WAN-side and Diretta-target-side NICs)
 
 ## 6. After first boot — before running the wizard
 
+A minimal install gives you `dnf` and not much else. Bring the system up to date, install the few tools the wizard depends on, then clone and run it:
+
 ```bash
 sudo dnf -y update
-sudo dnf -y install git
+sudo dnf -y install git curl mokutil grubby dnf-plugins-core
 git clone https://github.com/cometdom/fedora-audiophile-setup.git
 cd fedora-audiophile-setup
 sudo ./setup.sh
 ```
+
+What each package is for:
+
+| Package | Used by | Why |
+|---|---|---|
+| `git` | (you, before the clone) | To `git clone` this repo. |
+| `curl` | modules `01-kernel-rt`, `02-system-tuning` | Connectivity probe + downloading the DRUP tuner. |
+| `mokutil` | `00-preflight` | Verifying that Secure Boot is OFF before installing an unsigned kernel. |
+| `grubby` | `01-kernel-rt` | Setting the freshly installed `kernel-rt` as the default boot entry. |
+| `dnf-plugins-core` | `01-kernel-rt` | Provides `dnf copr enable` to activate `@kernel-vanilla/stable`. |
+
+`mokutil` and `grubby` are typically already present on a fresh Fedora minimal install — installing them again is a harmless no-op. The whole list adds well under 5 MB to disk.
 
 Or run with `--dry-run` first if you want to preview every action:
 
