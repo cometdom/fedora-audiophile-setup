@@ -99,14 +99,23 @@ else
     _fin_ok "no active swap"
 fi
 
-# --- Diretta NIC MTU drop-in ---
-_fin_link=$(find /etc/systemd/network -maxdepth 1 -name '50-audiophile-*-mtu.link' -type f 2>/dev/null | head -1)
-if [[ -n "$_fin_link" ]]; then
-    _fin_iface=$(basename "$_fin_link" | sed -E 's/^50-audiophile-(.+)-mtu\.link$/\1/')
-    _fin_mtu=$(grep -oE '^MTUBytes=[0-9]+' "$_fin_link" | cut -d= -f2)
-    _fin_ok "Diretta NIC MTU drop-in: ${_fin_iface} @ ${_fin_mtu}"
-else
-    _fin_skip "no Diretta NIC MTU drop-in (modules 10 and 11 skipped?)"
+# --- Diretta NIC MTU (the live values, regardless of who set them) ---
+# Show all physical ethernet NICs with their current MTU. A jumbo MTU
+# (>1500) usually means DRUP or slim2Diretta install.sh tuned that NIC.
+_fin_jumbo_found=0
+for _fin_dev in /sys/class/net/*; do
+    _fin_name=$(basename "$_fin_dev")
+    [[ "$_fin_name" == "lo" ]] && continue
+    [[ "$(readlink -f "$_fin_dev")" == *"/devices/virtual/"* ]] && continue
+    [[ "$(cat "${_fin_dev}/type" 2>/dev/null)" == "1" ]] || continue
+    _fin_mtu=$(cat "${_fin_dev}/mtu" 2>/dev/null || echo "?")
+    if (( _fin_mtu > 1500 )); then
+        _fin_ok "NIC ${_fin_name}: MTU ${_fin_mtu} (jumbo)"
+        _fin_jumbo_found=1
+    fi
+done
+if [[ $_fin_jumbo_found -eq 0 ]]; then
+    _fin_skip "no NIC with jumbo MTU detected — Diretta link will use 1500 bytes"
 fi
 
 # --- Renderer services ---
