@@ -229,10 +229,31 @@ if [[ "$_s2d_run_install" -eq 1 ]]; then
 
     log_warn "About to run slim2Diretta ./install.sh as user '${_s2d_user}'."
     log_warn "Answer its interactive prompts (codec selection menu, etc.)."
+    # Same upstream firewall caveat as DRUP — if firewalld is off, the
+    # install.sh network-config step aborts on a Y to the firewall prompt.
+    if ! is_service_active firewalld; then
+        log_warn "firewalld is NOT running. When install.sh asks"
+        log_warn "  'Configure firewall ...?', answer N."
+        log_warn "Answering Y aborts install.sh (upstream bug)."
+    fi
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
         log_info "DRY-RUN: would execute as ${_s2d_user}: cd ${_s2d_dir} && ${_s2d_llvm_prefix}./install.sh"
     else
+        # Direct exec; capture rc so an install.sh hiccup doesn't kill us.
+        # Success = the binary at /usr/local/bin/slim2diretta exists.
+        set +e
         sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ${_s2d_llvm_prefix}./install.sh"
+        _s2d_rc=$?
+        set -e
+        if [[ ! -x "$_s2d_binary" ]]; then
+            log_error "slim2Diretta install.sh exited (rc=${_s2d_rc}) and ${_s2d_binary} was not produced."
+            log_error "If it aborted on a firewall prompt with firewalld off, answer N and re-run:"
+            log_error "  sudo ./setup.sh --only install-slim2diretta"
+            exit 1
+        fi
+        if [[ $_s2d_rc -ne 0 ]]; then
+            log_warn "slim2Diretta install.sh exited with rc=${_s2d_rc} but the binary is present — continuing."
+        fi
     fi
 fi
 

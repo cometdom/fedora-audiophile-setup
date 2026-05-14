@@ -264,12 +264,35 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
 
     log_warn "About to run DRUP ./install.sh as user '${_drup_user}'."
     log_warn "It compiles FFmpeg from source — expect ~30 minutes. Answer its prompts."
+    # Known upstream bug: install.sh's "Configure firewall to allow UPnP
+    # traffic?" step calls firewall-cmd unconditionally and aborts on rc!=0
+    # when firewalld is inactive. Warn the user up front so they answer N.
+    if ! is_service_active firewalld; then
+        log_warn "firewalld is NOT running. When install.sh asks"
+        log_warn "  'Configure firewall to allow UPnP traffic?', answer N."
+        log_warn "Answering Y aborts install.sh (upstream bug)."
+    fi
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
         log_info "DRY-RUN: would execute as ${_drup_user}: cd ${_drup_dir} && ${_drup_llvm_prefix}./install.sh"
     else
         # Direct exec (no run_cmd / tee pipe) so install.sh keeps its TTY.
-        # -i = login shell so PATH/HOME are clean for the user.
+        # -i = login shell so PATH/HOME are clean for the user. Temporarily
+        # disable set -e so an install.sh hiccup at the firewall step (or
+        # similar) doesn't kill our wizard — we judge success by whether
+        # the binary was produced.
+        set +e
         sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ${_drup_llvm_prefix}./install.sh"
+        _drup_rc=$?
+        set -e
+        if [[ ! -f "$_drup_binary" ]]; then
+            log_error "DRUP install.sh exited (rc=${_drup_rc}) and ${_drup_binary} was not produced."
+            log_error "If it aborted on 'Configure firewall to allow UPnP traffic?' with firewalld off,"
+            log_error "answer N to that prompt and re-run: sudo ./setup.sh --only install-drup"
+            exit 1
+        fi
+        if [[ $_drup_rc -ne 0 ]]; then
+            log_warn "DRUP install.sh exited with rc=${_drup_rc} but the binary is present — continuing."
+        fi
     fi
 fi
 
