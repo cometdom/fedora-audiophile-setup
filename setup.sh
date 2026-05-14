@@ -38,9 +38,12 @@ if [[ "$SHOW_HELP" -eq 1 ]]; then
 fedora-audiophile-setup — interactive audiophile tuning wizard for Fedora 43.
 
 Usage:
-  sudo ./setup.sh                       Run the full interactive wizard.
-  sudo ./setup.sh --dry-run             Show every action without applying.
-  sudo ./setup.sh --only <module>       Run a single module (e.g. kernel-rt).
+  sudo ./setup.sh                       Show an interactive numbered menu
+                                        (full install or any single module).
+  sudo ./setup.sh --dry-run             Combine with the menu or --only to
+                                        preview every action without applying.
+  sudo ./setup.sh --only <module>       Run a single module directly, skipping
+                                        the menu (power-user shortcut).
   sudo ./setup.sh --help                Show this help.
 
 Available modules (in execution order):
@@ -69,7 +72,7 @@ fi
 if [[ -n "$ONLY_MODULE" ]]; then
     run_single_module "$ONLY_MODULE"
 else
-    run_all_modules
+    show_menu_and_dispatch
 fi
 
 log_info "Done. See ${LOG_FILE} for the full log."

@@ -145,3 +145,68 @@ run_single_module() {
     # shellcheck source=/dev/null
     source "$path"
 }
+
+# module_description <path> — print the short description from the module's
+# header line `# NN-name — description`. Empty if the file has no match.
+module_description() {
+    local path="$1"
+    [[ -r "$path" ]] || return 0
+    awk '
+        /^# [0-9]+-[a-z0-9-]+ — / {
+            sub(/^# [0-9]+-[a-z0-9-]+ — /, "");
+            print;
+            exit;
+        }
+    ' "$path"
+}
+
+# show_menu_and_dispatch — interactive numbered menu. Option 1 runs all
+# modules in order (default on Enter); options 2..N run one module
+# standalone; the last option exits cleanly.
+show_menu_and_dispatch() {
+    local -a names=()
+    while IFS= read -r m; do names+=("$m"); done < <(list_modules)
+    if [[ ${#names[@]} -eq 0 ]]; then
+        log_warn "No modules found in $MODULES_DIR — nothing to do."
+        return 0
+    fi
+
+    # Width of the longest module name, for visual alignment.
+    local maxw=12  # at least as wide as "Full install"
+    local n
+    for n in "${names[@]}"; do
+        (( ${#n} > maxw )) && maxw=${#n}
+    done
+
+    echo
+    echo "What do you want to do?"
+    echo
+    printf "  %2d) %-*s   %s\n" 1 "$maxw" "Full install" "all modules in order (recommended)"
+    local i=2 path desc
+    for n in "${names[@]}"; do
+        path=$(resolve_module_path "$n")
+        desc=$(module_description "$path")
+        printf "  %2d) %-*s — %s\n" "$i" "$maxw" "$n" "${desc:-(no description)}"
+        i=$((i+1))
+    done
+    local exit_idx=$i
+    printf "  %2d) %-*s\n" "$exit_idx" "$maxw" "Exit"
+    echo
+
+    local choice
+    while true; do
+        read -r -p "Choose [1]: " choice
+        choice="${choice:-1}"
+        if [[ "$choice" == "1" ]]; then
+            run_all_modules
+            return 0
+        elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 2 && choice < exit_idx )); then
+            run_single_module "${names[$((choice-2))]}"
+            return 0
+        elif [[ "$choice" == "$exit_idx" ]]; then
+            log_info "Bye."
+            exit 0
+        fi
+        echo "Invalid choice. Enter a number between 1 and ${exit_idx}."
+    done
+}

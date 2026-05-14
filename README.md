@@ -44,13 +44,30 @@ cd fedora-audiophile-setup
 sudo ./setup.sh
 ```
 
-The wizard will walk you through each step interactively. Use `--dry-run` to preview every action without applying changes:
+The wizard opens with an **interactive numbered menu** :
+
+```
+What do you want to do?
+
+   1) Full install         all modules in order (recommended)
+   2) preflight            — verify Fedora 43 / x86_64 / Secure Boot OFF / IPv6
+   3) kernel-rt            — install the PREEMPT_RT kernel...
+   ...
+  14) finalize             — sanity check + offer reboot
+  15) Exit
+
+Choose [1]:
+```
+
+Press Enter (or `1`) for the full install. Any other number runs that single module standalone.
+
+Use `--dry-run` to preview every action without applying changes — works with both the menu and `--only`:
 
 ```bash
 sudo ./setup.sh --dry-run
 ```
 
-To re-run a single module after initial setup:
+Power-user shortcut: skip the menu and re-run a single module by name:
 
 ```bash
 sudo ./setup.sh --only kernel-rt
