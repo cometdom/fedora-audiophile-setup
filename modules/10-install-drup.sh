@@ -145,12 +145,12 @@ fi
 echo
 echo "MTU on the Diretta NIC '${_drup_diretta_iface}':"
 echo "  1) 1500   (standard)"
-echo "  2) 9000   (jumbo, recommended)"
+echo "  2) 9014   (jumbo — recommended; matches Realtek RTL8156 and most jumbo-capable NICs)"
 echo "  3) 16128  (max — only if the Diretta target supports it)"
 read -r -p "Number [2]: " _drup_mtu_choice
 case "${_drup_mtu_choice:-2}" in
     1) _drup_mtu=1500 ;;
-    2|"") _drup_mtu=9000 ;;
+    2|"") _drup_mtu=9014 ;;
     3) _drup_mtu=16128 ;;
     *) log_error "Invalid MTU choice: ${_drup_mtu_choice}"; exit 1 ;;
 esac
