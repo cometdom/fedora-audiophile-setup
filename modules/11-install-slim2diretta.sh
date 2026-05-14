@@ -213,12 +213,18 @@ if [[ -x "$_s2d_binary" ]]; then
 fi
 
 if [[ "$_s2d_run_install" -eq 1 ]]; then
-    # Clang + LTO build is reported to improve audio quality on slim2Diretta
-    # as well. install.sh auto-installs clang and lld when LLVM=1 is set.
+    # Clang + LTO build. install.sh auto-installs clang and lld when LLVM=1
+    # is set, BUT we pre-install them ourselves — same defensive reasoning
+    # as for cmake (an install.sh pre-check that invokes clang before its
+    # own dnf install would otherwise fail).
     _s2d_llvm_prefix=""
     if ask_yes_no "Build slim2Diretta with Clang + LTO (recommended for sound quality)?" Y; then
         _s2d_llvm_prefix="LLVM=1 "
-        log_info "Will pass LLVM=1 to ./install.sh (clang + lld auto-installed by install.sh)."
+        if ! has_package clang || ! has_package lld; then
+            log_info "Pre-installing clang and lld for the LLVM build."
+            run_cmd dnf -y install clang lld
+        fi
+        log_info "Will pass LLVM=1 to ./install.sh."
     fi
 
     log_warn "About to run slim2Diretta ./install.sh as user '${_s2d_user}'."
