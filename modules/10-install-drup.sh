@@ -176,13 +176,26 @@ _drup_ensure_nm_connection() {
         log_warn "NM is active but nmcli is missing — cannot pre-create profile for ${iface}."
         return 0
     fi
-    local existing
-    existing=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null \
-        | awk -F: -v d="$iface" '$2==d {print $1; exit}')
-    if [[ -n "$existing" ]]; then
-        log_info "NM profile already present for ${iface}: '${existing}'."
+
+    # Check 1: our own named profile already exists? (`nmcli connection show`
+    # DEVICE column is unreliable for inactive connections — terse output
+    # shows '--', which breaks an awk match on the iface name. Match by NAME
+    # to catch our previously-created profile even when the iface is down.)
+    if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx "diretta-${iface}"; then
+        log_info "NM profile 'diretta-${iface}' already exists — skipping."
         return 0
     fi
+
+    # Check 2: some other NM profile is already bound to this iface?
+    # `nmcli device show <iface>` exposes GENERAL.CONNECTION, which is the
+    # connection name currently bound, regardless of active state.
+    local bound
+    bound=$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | cut -d: -f2)
+    if [[ -n "$bound" && "$bound" != "--" ]]; then
+        log_info "NM profile already bound to ${iface}: '${bound}' — skipping."
+        return 0
+    fi
+
     log_info "Creating minimal NM profile for ${iface} (link-local v4+v6, autoconnect)."
     run_cmd nmcli connection add type ethernet \
         ifname "$iface" \
@@ -211,9 +224,16 @@ fi
 # --- 6. Run DRUP install.sh as the user (TTY-direct, ~30 min) ------------
 
 _drup_binary="${_drup_dir}/bin/DirettaRendererUPnP"
+_drup_run_install=1
 if [[ -f "$_drup_binary" ]]; then
-    log_info "DRUP binary already built at ${_drup_binary} — skipping ./install.sh."
-else
+    log_info "DRUP binary already exists at ${_drup_binary}."
+    if ! ask_yes_no "Re-run ./install.sh (e.g. to rebuild with Clang+LTO or a different option)?" N; then
+        log_info "Keeping the existing binary — skipping ./install.sh."
+        _drup_run_install=0
+    fi
+fi
+
+if [[ "$_drup_run_install" -eq 1 ]]; then
     # Clang + LTO build is reported to improve audio quality on both DRUP
     # and slim2Diretta. install.sh auto-installs clang and lld when LLVM=1
     # is set in the environment.

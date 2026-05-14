@@ -141,11 +141,17 @@ _s2d_ensure_nm_connection() {
         log_warn "NM is active but nmcli is missing — cannot pre-create profile for ${iface}."
         return 0
     fi
-    local existing
-    existing=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null \
-        | awk -F: -v d="$iface" '$2==d {print $1; exit}')
-    if [[ -n "$existing" ]]; then
-        log_info "NM profile already present for ${iface}: '${existing}'."
+    # Same dual check as module 10: by NAME (catches our own profile even
+    # when bound iface is down) and by GENERAL.CONNECTION on the device
+    # (catches any other profile bound to this NIC).
+    if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx "diretta-${iface}"; then
+        log_info "NM profile 'diretta-${iface}' already exists — skipping."
+        return 0
+    fi
+    local bound
+    bound=$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | cut -d: -f2)
+    if [[ -n "$bound" && "$bound" != "--" ]]; then
+        log_info "NM profile already bound to ${iface}: '${bound}' — skipping."
         return 0
     fi
     log_info "Creating minimal NM profile for ${iface} (link-local v4+v6, autoconnect)."
@@ -183,9 +189,16 @@ fi
 # --- 7. Run install.sh as the user (TTY-direct) --------------------------
 
 _s2d_binary="/usr/local/bin/slim2diretta"
+_s2d_run_install=1
 if [[ -x "$_s2d_binary" ]]; then
-    log_info "slim2Diretta binary already installed at ${_s2d_binary} — skipping ./install.sh."
-else
+    log_info "slim2Diretta binary already installed at ${_s2d_binary}."
+    if ! ask_yes_no "Re-run ./install.sh (e.g. to rebuild with Clang+LTO or a different option)?" N; then
+        log_info "Keeping the existing binary — skipping ./install.sh."
+        _s2d_run_install=0
+    fi
+fi
+
+if [[ "$_s2d_run_install" -eq 1 ]]; then
     # Clang + LTO build is reported to improve audio quality on slim2Diretta
     # as well. install.sh auto-installs clang and lld when LLVM=1 is set.
     _s2d_llvm_prefix=""
