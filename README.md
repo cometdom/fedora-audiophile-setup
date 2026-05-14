@@ -13,7 +13,7 @@ An interactive Bash wizard that, in a single run, applies all the system-level t
 - Lets you **keep NetworkManager (tuned)** or **switch to systemd-networkd** — your call. The default keeps NM (safer on SSH-only hosts, `nmtui` available); networkd is opt-in for the most deterministic stack.
 - Sets the CPU governor to **performance**, disables C-states, no_turbo
 - Pins NIC IRQs and audio threads to dedicated cores via the [DRUP tuner scripts](https://github.com/cometdom/DirettaRendererUPnP/blob/main/diretta-renderer-tuner.sh)
-- Configures **MTU 9000 (jumbo frames)** and ethtool link tuning
+- Configures **MTU (up to 16128)** and ethtool link tuning on the Diretta NIC (during the DRUP / slim2Diretta install steps, where the right NIC is known)
 - Moves `journald` to RAM and optionally `/var/log` + `/var/tmp` to tmpfs (reduces disk activity during playback)
 - Disables `swap`, sets `vm.swappiness=0`
 - Disables unneeded services (bluetooth, cups, etc.)

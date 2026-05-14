@@ -19,7 +19,7 @@ The modules in `modules/` are numbered (`00-` through `99-`) and executed in tha
 | 04 | tmpfs-disk | Make journald volatile, move `/var/log` and `/var/tmp` to tmpfs | TODO |
 | 05 | services-cleanup | Disable bluetooth/cups/etc. | TODO |
 | 06 | cpu-states | Disable C-states, no_turbo, governor=performance (runtime fallback) | TODO |
-| 07 | sysctl-network | Bump `net.core.rmem_max` / `net.core.wmem_max` for jumbo + DSD | TODO |
+| 07 | sysctl-network | Bump global socket buffers (`rmem_max` / `wmem_max` / backlog). MTU + ethtool live in 10/11. | TODO |
 | 08 | tuned-profile | Apply tuned profile geared for latency | TODO |
 | 09 | swap-disable | `swapoff -a` + `vm.swappiness=0` + remove swap from fstab | TODO |
 | 10 | install-drup | Install DirettaRendererUPnP via its own `install.sh` | TODO |
@@ -88,7 +88,16 @@ TODO. Cover:
 
 ### 07 — sysctl-network
 
-TODO. Bump `net.core.rmem_max`, `net.core.wmem_max`, and matching default socket buffers when MTU 9000 + DSD512+ requires it. Write to `/etc/sysctl.d/99-audiophile.conf` so it survives reboot.
+Strictly host-wide socket-buffer knobs, written to `/etc/sysctl.d/99-audiophile-network.conf` and reloaded via `sysctl --system`:
+
+| Knob | Value | Purpose |
+|---|---|---|
+| `net.core.rmem_max` / `wmem_max` | 16 MB | Max per-socket buffer a process can request. |
+| `net.core.rmem_default` / `wmem_default` | 4 MB | Buffer for sockets that don't request explicitly. |
+| `net.core.optmem_max` | 64 KB | Ancillary cmsg room (multicast, hw-timestamping). |
+| `net.core.netdev_max_backlog` | 5000 | Packets buffered between NIC IRQ and userland reads. |
+
+**MTU and ethtool link tuning are not done here.** On a Diretta host there are typically two NICs (WAN/LAN at MTU 1500, Diretta point-to-point up to MTU 16128), and only the install modules know which NIC is which — so MTU + ethtool live in `10-install-drup` / `11-install-slim2diretta`.
 
 ### 08 — tuned-profile
 
