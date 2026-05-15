@@ -4,7 +4,7 @@
 # tools the wizard depends on at runtime.
 #
 # Order:
-#   1. Distribution is Fedora 43           (blocking)
+#   1. Distribution is Fedora 43 or 44     (blocking)
 #   2. Architecture is x86_64              (blocking)
 #   3. Install missing wizard prerequisites (curl, mokutil, grubby,
 #      dnf-plugins-core) — safety net so the user can forget the documented
@@ -30,13 +30,16 @@ _preflight_check_os() {
     # shellcheck disable=SC1091
     source /etc/os-release
     if [[ "${ID:-}" != "fedora" ]]; then
-        log_error "Unsupported distribution: ${ID:-unknown}. This wizard targets Fedora 43 only."
+        log_error "Unsupported distribution: ${ID:-unknown}. This wizard targets Fedora 43 or 44 only."
         exit 1
     fi
-    if [[ "${VERSION_ID:-}" != "43" ]]; then
-        log_error "Unsupported Fedora release: ${VERSION_ID:-unknown}. This wizard targets Fedora 43 only."
-        exit 1
-    fi
+    case "${VERSION_ID:-}" in
+        43|44) ;;
+        *)
+            log_error "Unsupported Fedora release: ${VERSION_ID:-unknown}. This wizard targets Fedora 43 or 44 only."
+            exit 1
+            ;;
+    esac
     log_info "OS: Fedora ${VERSION_ID} (${VARIANT_ID:-unspecified variant})"
 }
 

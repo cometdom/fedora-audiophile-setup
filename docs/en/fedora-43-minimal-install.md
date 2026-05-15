@@ -1,8 +1,10 @@
-# Fedora 43 — Minimal Custom Install
+# Fedora 43 or 44 — Minimal Custom Install
 
 > **Status: skeleton.** This guide is being written. Sections marked TODO need real content.
+>
+> **Filename kept as `fedora-43-minimal-install.md`** so existing links don't break, but the wizard supports both Fedora 43 and 44 — pick whichever the Fedora project currently promotes when you download the ISO.
 
-This guide walks you through installing Fedora 43 in a minimal, custom configuration suitable for use as a dedicated audiophile playback host. It is the **pre-requisite** for running `setup.sh`.
+This guide walks you through installing Fedora 43 or 44 in a minimal, custom configuration suitable for use as a dedicated audiophile playback host. It is the **pre-requisite** for running `setup.sh`.
 
 The goal is a system with **only the packages you need**, no desktop environment, no audio servers (PulseAudio / PipeWire), no unnecessary background services. Every removed package is one less source of jitter and one less attack surface.
 
@@ -23,7 +25,7 @@ TODO: add screenshots of common BIOS interfaces (AMI, Insyde, ASRock, etc.).
 
 ## 2. Choose the right Fedora ISO
 
-You want the **Fedora 43 Everything netinstall** ISO, NOT the Workstation or Server live image:
+You want the **Fedora 43 or 44 Everything netinstall** ISO, NOT the Workstation or Server live image:
 
 - **Workstation** ships GNOME and a desktop stack you'd have to remove afterwards.
 - **Server** ships a slightly less bloated stack, but still more than we want.
@@ -31,7 +33,7 @@ You want the **Fedora 43 Everything netinstall** ISO, NOT the Workstation or Ser
 
 Download: https://alt.fedoraproject.org/
 
-TODO: paste exact filename pattern for Fedora 43.
+TODO: paste exact filename patterns (`Fedora-Everything-netinst-x86_64-43-*.iso` / `Fedora-Everything-netinst-x86_64-44-*.iso`).
 
 Write the ISO to a USB stick:
 

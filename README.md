@@ -1,6 +1,6 @@
 # fedora-audiophile-setup
 
-Turn a clean **Fedora 43 minimal** install into a tuned audiophile playback host, ready to run [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
+Turn a clean **Fedora 43 or 44 minimal** install into a tuned audiophile playback host, ready to run [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
 
 > **Status: early development.** Scope and design are settled, modules are being implemented one by one. Not ready for production use yet.
 
@@ -24,7 +24,7 @@ After a single reboot, your audio host is fully tuned and ready.
 
 ## Requirements
 
-- **Fedora 43** (Server or Workstation, minimal install — see [the install guide](docs/en/fedora-43-minimal-install.md))
+- **Fedora 43 or 44** (Server or Workstation, minimal install — see [the install guide](docs/en/fedora-43-minimal-install.md)). Fedora 44 is what `fedoraproject.org` promotes right now; Fedora 43 is still supported until ~end of 2026.
 - **Secure Boot disabled** in BIOS (the vanilla kernels can't be signed)
 - Root access
 - Internet connection (to fetch the kernel COPR and dependencies)

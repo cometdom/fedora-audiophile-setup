@@ -4,10 +4,10 @@ Concise record of the design decisions taken when bootstrapping this project (20
 
 ## Scope
 
-Turn a **clean Fedora 43 minimal install** into a tuned audiophile playback host for [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
+Turn a **clean Fedora 43 or 44 minimal install** into a tuned audiophile playback host for [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
 
 **In scope:**
-- x86_64 Fedora 43 only (single-target distro, single-target arch — keeps testing surface small)
+- x86_64 Fedora 43 or 44 (the two currently-supported Fedora releases — keeps testing surface small, accommodates users that started on 43 and those landing fresh on 44)
 - All system-level tunings already documented in DRUP / slim2Diretta READMEs and wrapper scripts
 - Optional install + configuration of DRUP and/or slim2Diretta
 
