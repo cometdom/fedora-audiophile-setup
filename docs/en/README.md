@@ -23,10 +23,10 @@ The PDF lands next to the source `.md`. Styling lives in [`docs/pdf.css`](../pdf
 
 ## Translations
 
-Translations of these guides will be added once the English source is stable. Planned next:
+Available / planned:
 
-- French (`docs/fr/`)
-- Spanish (`docs/es/`)
+- French (`docs/fr/`) — [newbie walkthrough](../fr/newbie-walkthrough.md) translated (synced with EN v0.1). Other guides pending.
+- Spanish (`docs/es/`) — planned.
 
 If you'd like to contribute a translation, please open an issue first so we can sync on the source revision.
 
