@@ -75,8 +75,9 @@ sudo ./setup.sh --only kernel-rt
 
 ## Documentation
 
-- [Fedora 43 minimal install (custom)](docs/en/fedora-43-minimal-install.md) — pre-requisite guide
-- [Post-install tuning reference](docs/en/post-install-tuning.md) — what each module does, and why
+- **[Newbie walkthrough](docs/en/newbie-walkthrough.md)** — start here if you've never installed Linux. Goes from empty mini-PC to first listening test, no prior knowledge assumed.
+- [Fedora 43 minimal install (custom)](docs/en/fedora-43-minimal-install.md) — terser install reference.
+- [Post-install tuning reference](docs/en/post-install-tuning.md) — what each module does, and why.
 
 ## Roadmap
 

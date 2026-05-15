@@ -4,7 +4,8 @@ Project documentation, English-first.
 
 ## Guides
 
-- [Fedora 43 minimal install (custom)](fedora-43-minimal-install.md) — how to prepare a clean Fedora 43 base before running the installer. Covers BIOS settings, Fedora installer choices, partitioning, and minimal package selection.
+- **[Newbie walkthrough](newbie-walkthrough.md)** — start here if you've never installed Linux before. Takes you from an empty mini-PC to a fully tuned audiophile host, hand-holding every step (BIOS, USB stick, Anaconda installer, SSH, SDK download, running the wizard, first listening test).
+- [Fedora 43 minimal install (custom)](fedora-43-minimal-install.md) — terser reference for the install phase, oriented at users who already know their way around a Linux installer.
 - [Post-install tuning reference](post-install-tuning.md) — what the wizard does, module by module, and why each tweak matters.
 - [Design notes](design-notes.md) — architectural decisions and conventions. Read this before adding a new module.
 
