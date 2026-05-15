@@ -25,13 +25,20 @@ jobs:
             pandoc weasyprint fonts-dejavu fonts-dejavu-core
 
       - name: Build the PDFs
+        # Release assets are keyed by filename only (not path), so the two
+        # PDFs MUST have distinct basenames or the second upload silently
+        # overwrites the first. Use build-pdf.sh's 2nd arg (output path) to
+        # emit language-suffixed names at the repo root.
         run: |
-          ./scripts/build-pdf.sh docs/en/newbie-walkthrough.md
-          ./scripts/build-pdf.sh docs/fr/newbie-walkthrough.md
+          ./scripts/build-pdf.sh docs/en/newbie-walkthrough.md newbie-walkthrough-en.pdf
+          ./scripts/build-pdf.sh docs/fr/newbie-walkthrough.md newbie-walkthrough-fr.pdf
+          test -f newbie-walkthrough-en.pdf
+          test -f newbie-walkthrough-fr.pdf
 
       - name: Attach the PDFs to the release
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
-            docs/en/newbie-walkthrough.pdf
-            docs/fr/newbie-walkthrough.pdf
+            newbie-walkthrough-en.pdf
+            newbie-walkthrough-fr.pdf
