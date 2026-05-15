@@ -227,7 +227,7 @@ A minimal Fedora install ships almost nothing. Update the system and install the
 
 ```bash
 sudo dnf -y update
-sudo dnf -y install git curl mokutil grubby dnf-plugins-core
+sudo dnf -y install git curl mokutil grubby dnf-plugins-core tar
 ```
 
 - `git` is needed to clone the wizard repo (and DRUP, slim2Diretta).
