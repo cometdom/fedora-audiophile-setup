@@ -1,7 +1,5 @@
 # Post-Install Tuning Reference
 
-> **Status: skeleton.** Each module is being implemented one by one and will be documented here as we go.
-
 This document explains every tuning the wizard applies — what it changes, why it matters for audio playback, where the change is persisted, and how to revert it manually if needed.
 
 The wizard always writes a full log to `/var/log/audiophile-setup/<timestamp>.log` so you can see exactly what happened on your specific machine.
@@ -12,50 +10,53 @@ The modules in `modules/` are numbered (`00-` through `99-`) and executed in tha
 
 | # | Module | What it does | Status |
 |---|--------|--------------|--------|
-| 00 | preflight | Sanity checks (Fedora 43, root, Secure Boot off, internet) | TODO |
-| 01 | kernel-rt | Install PREEMPT_RT kernel from `@kernel-vanilla/stable` COPR | TODO |
-| 02 | system-tuning | Run DRUP `diretta-renderer-tuner` for isolcpus/IRQ/slice | TODO |
-| 03 | network-stack | Keep NetworkManager (tuned) or switch to systemd-networkd — user's choice | TODO |
-| 04 | tmpfs-disk | Make journald volatile, move `/var/log` and `/var/tmp` to tmpfs | TODO |
-| 05 | services-cleanup | Disable bluetooth/cups/etc. | TODO |
-| 06 | cpu-states | Disable C-states, no_turbo, governor=performance (runtime fallback) | TODO |
-| 07 | sysctl-network | Bump global socket buffers (`rmem_max` / `wmem_max` / backlog). MTU + ethtool live in 10/11. | TODO |
-| 08 | tuned-profile | Apply tuned profile geared for latency | TODO |
-| 09 | swap-disable | `swapoff -a` + `vm.swappiness=0` + remove swap from fstab | TODO |
-| 10 | install-drup | Install DirettaRendererUPnP via its own `install.sh` | TODO |
-| 11 | install-slim2diretta | Install slim2Diretta via its own `install.sh` | TODO |
-| 99 | finalize | Generate `.conf` files, enable services, print reboot instructions | TODO |
+| 00 | preflight | Verify Fedora 43/44, x86_64, Secure Boot off, IPv6 on; auto-install curl/mokutil/grubby/dnf-plugins-core | Done |
+| 01 | kernel-rt | Install PREEMPT_RT kernel from `@kernel-vanilla/stable` COPR, set it as the default GRUB entry | Done |
+| 02 | system-tuning | Run the DRUP `diretta-renderer-tuner` (`apply`) for isolcpus/IRQ/slice/governor | Done |
+| 03 | network-stack | Keep NetworkManager (tuned) or switch to systemd-networkd — user's choice | Done |
+| 04 | tmpfs-disk | Make journald volatile, optionally move `/var/log` and `/var/tmp` to tmpfs | Done |
+| 05 | services-cleanup | Disable bluetooth/cups/avahi/etc.; optionally disable firewalld and SELinux | Done |
+| 06 | cpu-states | governor=performance, disable turbo/boost, disable deep c-states (systemd oneshot) | Done |
+| 07 | sysctl-network | Bump global socket buffers (`rmem_max` / `wmem_max` / backlog). MTU + ethtool live in 10/11. | Done |
+| 08 | tuned-profile | Install tuned, apply the `latency-performance` profile | Done |
+| 09 | swap-disable | `swapoff -a` + `vm.swappiness=0` + comment swap out of `/etc/fstab` | Done |
+| 10 | install-drup | Install DirettaRendererUPnP via its own `install.sh`, wire up `/etc/default/diretta-renderer` | Done |
+| 11 | install-slim2diretta | Install slim2Diretta via its own `install.sh`, wire up `/etc/default/slim2diretta` | Done |
+| 99 | finalize | Sanity-check every module's mark, then offer a reboot | Done |
 
 ---
 
 ## Module details
 
-Each section below will be filled in as the corresponding module is implemented.
+The authoritative, always-current description of each module is the header comment block at the top of the corresponding `modules/NN-*.sh` file (kept in sync with the code). The interactive prompts and recommended answers are summarised in the [newbie walkthrough §13](newbie-walkthrough.md#13-answer-the-per-module-prompts). The notes below give the "what and why" at a glance.
 
 ### 00 — preflight
 
-TODO
+Hard pre-conditions, all blocking: distribution is Fedora 43 or 44, architecture is x86_64, Secure Boot is OFF (the vanilla kernel-rt can't be signed), IPv6 is enabled (the Diretta protocol requires it). As a safety net it also installs the small CLI tools the wizard itself needs (`curl`, `mokutil`, `grubby`, `dnf-plugins-core`) if they're missing.
 
 ### 01 — kernel-rt
 
-TODO. Will use:
+Enables the kernel-vanilla COPR and installs the realtime kernel, then makes it the default boot entry so the single planned reboot lands on `kernel-rt`:
 
 ```bash
 dnf -y copr enable @kernel-vanilla/stable
 dnf -y install kernel-rt kernel-rt-core kernel-rt-modules
+grubby --set-default=/boot/vmlinuz-<...>rt<...>
 ```
 
-Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories
+Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories. Idempotent: skips when kernel-rt is already installed and already the default.
 
 ### 02 — system-tuning
 
-TODO. Delegates to the `diretta-renderer-tuner.sh` (or `-nosmt` variant) shipped with DirettaRendererUPnP, which handles:
+Downloads the `diretta-renderer-tuner.sh` (or its `-nosmt` variant) from DirettaRendererUPnP and runs it with `apply`. The tuner handles:
 
 - Kernel cmdline (`isolcpus`, `nohz_full`, `rcu_nocbs`, `irqaffinity`, optional `nosmt`)
 - CPU governor service (`cpu-performance-diretta*.service`)
 - Systemd slice with `AllowedCPUs`
 - NIC IRQ affinity service
 - Thread round-robin distribution on isolated cores
+
+Fetched fresh so the module works even without DRUP installed (slim2Diretta-only setups).
 
 ### 03 — network-stack
 
@@ -69,22 +70,24 @@ Generated files carry a `# Generated by fedora-audiophile-setup` header line. If
 
 ### 04 — tmpfs-disk
 
-TODO. Two-step:
+Two steps:
 
-1. **Journald volatile** — `Storage=volatile` in `/etc/systemd/journald.conf`. Logs live in `/run/log/journal/` (already a tmpfs) and are cleared on reboot.
-2. **Optional `/var/log` and `/var/tmp` as tmpfs** via `/etc/fstab`. Asked interactively.
+1. **Journald volatile** — a drop-in under `/etc/systemd/journald.conf.d/` sets `Storage=volatile`. Logs live in `/run/log/journal/` (already a tmpfs) and are cleared on reboot. journald is restarted so it takes effect immediately.
+2. **Optional `/var/log` and `/var/tmp` as tmpfs** via `/etc/fstab` (asked interactively, default yes). `/var/tmp` keeps `mode=1777`. fstab entries are tagged so re-runs are no-ops.
 
 ### 05 — services-cleanup
 
-TODO. Mask: `bluetooth.service`, `cups.service`, `firewalld.service` (optional), and other usual suspects when present.
+Disables a fixed list of services and timers an audiophile host never needs (bluetooth, cups, avahi, ModemManager, packagekit, udisks2, abrt\*, fwupd\*, `dnf-makecache.timer`, `*-updatedb.timer`). `static` units (e.g. `cups.service`) are stopped rather than disabled. Two interactive prompts, both default **Y** on a dedicated host: disable `firewalld`, and disable SELinux (`setenforce 0` + `SELINUX=disabled` in `/etc/selinux/config`).
 
 ### 06 — cpu-states
 
-TODO. Cover:
+Installs a systemd oneshot service plus its `/usr/local/sbin` script that, on every boot:
 
-- Set governor to `performance` via systemd service (idempotent with what tuner already does, but explicit here for non-tuner cases)
-- `intel_pstate` no_turbo where applicable
-- C-states off on cores that aren't already isolated by `nohz_full`
+- sets `scaling_governor=performance` on every CPU
+- disables turbo/boost (Intel pstate `no_turbo`, fallback `cpufreq/boost` for AMD/acpi-cpufreq)
+- disables c-states deeper than C0/C1 (cpuidle `state2+`)
+
+Best-effort writes (missing sysfs nodes skipped). Coexists with the DRUP tuner's governor service — both write the same values.
 
 ### 07 — sysctl-network
 
@@ -101,23 +104,23 @@ Strictly host-wide socket-buffer knobs, written to `/etc/sysctl.d/99-audiophile-
 
 ### 08 — tuned-profile
 
-TODO. Install `tuned` if absent, apply `latency-performance` (or a custom profile we ship under `profiles/audiophile.conf`).
+Installs `tuned` if absent, enables it, and applies the built-in `latency-performance` profile. tuned is a conservative baseline; modules 06 and 07 layer their explicit values on top via systemd units that run after `multi-user.target`, so our values win on any overlap. Idempotent: skips the `tuned-adm profile` call when the target profile is already active.
 
 ### 09 — swap-disable
 
-TODO. `swapoff -a`, `vm.swappiness=0` in sysctl, comment out swap entries from `/etc/fstab`.
+`swapoff -a` (probed via `/proc/swaps` first), `vm.swappiness=0` via `/etc/sysctl.d/99-audiophile-swap.conf`, and active swap lines in `/etc/fstab` commented out with a recognisable tag. fstab is backed up before edit. awk matches the fstab `swap` fstype on field 3, so device paths containing "swap" don't false-positive.
 
 ### 10 — install-drup
 
-TODO. Asks if the user wants DirettaRendererUPnP, then delegates to its `install.sh` (clones the repo or uses a release tarball). Generates `/etc/default/diretta-renderer` with sane defaults using info gathered during the wizard (interface name, target ID, CPU affinity, etc.).
+Optional (asked up front). Detects `SUDO_USER` (DRUP `install.sh` refuses root) and the manually-downloaded Diretta SDK under `~/DirettaHostSDK_*`. Pre-installs build deps, lets the user pick the Diretta-side NIC, pre-creates a NetworkManager profile for it (so DRUP `install.sh` can persist the MTU), clones DRUP, runs `./install.sh` (optionally `LLVM=1` for a Clang+LTO build), then `systemd/install-systemd.sh`, and post-processes `/etc/default/diretta-renderer` (`INTERFACE`, `TARGET_INTERFACE`, `TARGET`). MTU + jumbo are answered once, inside DRUP's own installer. Service is enabled but not started — it waits for the reboot.
 
 ### 11 — install-slim2diretta
 
-TODO. Same as above for slim2Diretta.
+Same shape as module 10, for slim2Diretta. Standalone (works without DRUP). Lighter — no FFmpeg-from-source. Reuses the Diretta-NIC choice, asks an optional LMS server IP, runs slim2Diretta's interactive `install.sh` (which deploys the binary, service and config itself), then post-processes `/etc/default/slim2diretta` (`TARGET`, `TARGET_INTERFACE`, optional `SLIM2DIRETTA_OPTS`). Service enabled, not started.
 
 ### 99 — finalize
 
-Pure inspection — touches nothing. For each module the wizard ran, the finalizer looks for the mark that module would have left (kernel-rt installed and default boot entry, journald drop-in, fstab tmpfs entries, sysctl drop-ins, `audiophile-cpu-states.service`, tuned profile, swap status, MTU `.link` drop-in, and the renderer services). Each line prints either `[OK]` or `[--]`. A `[--]` is not a failure — it just means the matching module was skipped or its target was optional.
+Pure inspection — touches nothing. For each module the wizard ran, the finalizer looks for the mark that module would have left (kernel-rt installed and default boot entry, journald drop-in, fstab tmpfs entries, sysctl drop-ins, `audiophile-cpu-states.service`, tuned profile, swap status, jumbo MTU on a NIC, the renderer services). Each line prints either `[OK]` or `[--]`. A `[--]` is not a failure — it just means the matching module was skipped or its target was optional.
 
 After the summary, the user is prompted `Reboot now? [y/N]` (default N — gives you time to inspect first). The whole point of the wizard is to apply everything in one pass and reboot once; the finalizer is where that reboot happens (or where you copy the suggested verification commands and reboot yourself).
 
@@ -125,6 +128,14 @@ After the summary, the user is prompted `Reboot now? [y/N]` (default N — gives
 
 ## Reverting
 
-The wizard does **not** provide a per-module rollback in v0.1 (see the [README](../../README.md) roadmap). To revert manually:
+The wizard does **not** provide a per-module rollback (a deliberate design choice — see [design-notes](design-notes.md)). It is safe to re-run instead: every module is idempotent and converges rather than stacking changes.
 
-TODO: write a checklist per module of how to manually undo it.
+To undo a change by hand, the generated artefacts are easy to find — they are tagged or live in well-known paths:
+
+- Files carrying a `# Generated by fedora-audiophile-setup` (or `# audiophile-setup`) header: the systemd-networkd `.network` files, the journald and sysctl drop-ins, the swap fstab lines.
+- `audiophile-cpu-states.service` + `/usr/local/sbin/audiophile-cpu-states.sh`.
+- `tuned-adm profile balanced` reverts module 08.
+- `grubby --set-default` to an earlier kernel reverts the boot side of module 01 (the package can stay installed).
+- The DRUP / slim2Diretta services have their own `uninstall-systemd.sh` (DRUP) / reinstall path.
+
+`fstab` is backed up to `fstab.audiophile-bak.<timestamp>` before the swap edit, so the original is always recoverable.

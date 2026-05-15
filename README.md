@@ -2,7 +2,7 @@
 
 Turn a clean **Fedora 43 or 44 minimal** install into a tuned audiophile playback host, ready to run [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
 
-> **Status: early development.** Scope and design are settled, modules are being implemented one by one. Not ready for production use yet.
+> **Status: 1.0.** All modules implemented and tested on Fedora 43 and 44 (x86_64). Production-ready for the supported scope.
 
 ## What it does
 
@@ -81,10 +81,11 @@ sudo ./setup.sh --only kernel-rt
 
 ## Roadmap
 
-- [ ] v0.1 — Working wizard with all modules, English docs only
-- [ ] v0.2 — French and Spanish translations of the documentation
-- [ ] v0.3 — Support advanced option: compile vanilla preempt-rt kernel from source
-- [ ] v0.4 — Optional config-file mode for unattended provisioning
+- [x] **v1.0** — Working wizard with all modules, interactive menu, Fedora 43/44 support, EN docs + French newbie walkthrough, PDF generation
+- [ ] v1.1 — Spanish translation; finish translating the remaining guides to French
+- [ ] v1.2 — Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
+- [ ] v1.3 — Optional config-file mode for unattended provisioning
+- [ ] _separate sibling repo_ — Raspberry Pi / DietPi (ARM) audiophile setup
 
 ## License
 

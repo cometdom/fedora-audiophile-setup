@@ -1,0 +1,37 @@
+name: Release PDFs
+
+# When a version tag (vX.Y.Z) is pushed, render the newbie walkthrough
+# (EN + FR) to PDF and attach both to the matching GitHub Release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+
+      - name: Install pandoc + WeasyPrint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pandoc weasyprint fonts-dejavu fonts-dejavu-core
+
+      - name: Build the PDFs
+        run: |
+          ./scripts/build-pdf.sh docs/en/newbie-walkthrough.md
+          ./scripts/build-pdf.sh docs/fr/newbie-walkthrough.md
+
+      - name: Attach the PDFs to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            docs/en/newbie-walkthrough.pdf
+            docs/fr/newbie-walkthrough.pdf
