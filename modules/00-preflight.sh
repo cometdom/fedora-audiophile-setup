@@ -6,7 +6,7 @@
 # Order:
 #   1. Distribution is Fedora 43 or 44     (blocking)
 #   2. Architecture is x86_64              (blocking)
-#   3. Install missing wizard prerequisites (curl, mokutil, grubby,
+#   3. Install missing wizard prerequisites (curl, mokutil, grubby, tar,
 #      dnf-plugins-core) — safety net so the user can forget the documented
 #      'dnf install' step and still get a clean run.
 #   4. Secure Boot is OFF                  (blocking — uses mokutil from #3)
@@ -58,10 +58,11 @@ _preflight_install_tools() {
     command -v curl    >/dev/null 2>&1 || missing+=(curl)
     command -v mokutil >/dev/null 2>&1 || missing+=(mokutil)
     command -v grubby  >/dev/null 2>&1 || missing+=(grubby)
+    command -v tar     >/dev/null 2>&1 || missing+=(tar)
     has_package dnf-plugins-core       || missing+=(dnf-plugins-core)
 
     if [[ ${#missing[@]} -eq 0 ]]; then
-        log_info "Required CLI tools already present (curl, mokutil, grubby, dnf-plugins-core)."
+        log_info "Required CLI tools already present (curl, mokutil, grubby, tar, dnf-plugins-core)."
         return 0
     fi
     log_info "Installing missing wizard prerequisites: ${missing[*]}"
