@@ -228,7 +228,7 @@ Une installation Fedora minimale ne contient presque rien. Mettez le système à
 
 ```bash
 sudo dnf -y update
-sudo dnf -y install git curl mokutil grubby dnf-plugins-core
+sudo dnf -y install git curl mokutil grubby dnf-plugins-core tar
 ```
 
 - `git` est nécessaire pour cloner le dépôt de l'assistant (et DRUP, slim2Diretta).
