@@ -1,10 +1,10 @@
-# Newbie Walkthrough — Fedora 43 + audiophile setup, from zero
+# Newbie Walkthrough — Fedora 43/44 + audiophile setup, from zero
 
 This guide takes you from an empty PC to a fully tuned audiophile playback host running [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta). No prior Linux experience required — every step has the exact command you need to type.
 
 **Time required:** about 2–3 hours total. Most of it is the kernel + FFmpeg + DRUP compilation, which runs unattended.
 
-**What you'll have at the end:** a headless mini-PC dedicated to audio playback, with a real-time kernel, isolated CPU cores, jumbo Ethernet to your Diretta DAC, and an audio renderer (UPnP and/or LMS) that just appears on your network for your control point to drive.
+**What you'll have at the end:** a headless PC or mini-PC dedicated to audio playback, with a real-time kernel, isolated CPU cores, jumbo Ethernet to your Diretta DAC, and an audio renderer (UPnP and/or LMS) that just appears on your network for your control point to drive.
 
 ## Table of contents
 
@@ -12,9 +12,9 @@ This guide takes you from an empty PC to a fully tuned audiophile playback host 
 - **Part A — at the machine (screen, keyboard, mouse)**
   - [1. Pick the right hardware](#1-pick-the-right-hardware)
   - [2. BIOS settings before booting the installer](#2-bios-settings-before-booting-the-installer)
-  - [3. Download the Fedora 43 ISO](#3-download-the-fedora-43-iso)
+  - [3. Download the Fedora ISO](#3-download-the-fedora-iso)
   - [4. Create the bootable USB stick](#4-create-the-bootable-usb-stick)
-  - [5. Install Fedora 43 minimal](#5-install-fedora-43-minimal)
+  - [5. Install Fedora minimal](#5-install-fedora-minimal)
   - [6. Note the IP address](#6-note-the-ip-address)
 - **Part B — from your couch (SSH)**
   - [7. Connect via SSH](#7-connect-via-ssh)
@@ -37,11 +37,11 @@ This guide takes you from an empty PC to a fully tuned audiophile playback host 
 
 You need:
 
-- A **mini-PC** (Intel NUC, small AMD box, etc.) — x86_64, at least 4 GB RAM and 30 GB free disk. ARM is not supported by this wizard.
+- A **PC or mini-PC** (Intel NUC, small AMD box, etc.) — x86_64, at least 8 GB RAM (16–32 GB recommended) and 30 GB free disk. ARM is not supported by this wizard.
 - A **second computer** (your main laptop/desktop) to prepare the USB stick and connect via SSH later.
 - A **USB stick**, at least 8 GB. Its contents will be wiped.
 - An **Ethernet cable** plugged into your home network — Wi-Fi is not recommended for sustained audio streaming.
-- (Optional but recommended for the best Diretta link) **A second NIC** — a USB-Ethernet adapter with the Realtek RTL8156 chipset is a known good choice.
+- (Optional but recommended for the best Diretta link) **A second NIC** dedicated to the Diretta link — a USB-Ethernet adapter with the **Realtek RTL8156** chipset is the reference choice and is the only way to push MTU up to 16128 (next best is jumbo 9014, which any modern NIC handles).
 - A **Diretta target / DAC** on your audio network (this is what the audio PC will stream to).
 - The IP address or admin access to your **home router** (to look up the IP of the audio PC later).
 - **About 1 hour of patience** during the FFmpeg + DRUP build step in [§13](#13-answer-the-per-module-prompts).
@@ -56,9 +56,9 @@ You'll need screen, keyboard, and mouse plugged into the audio PC for this part.
 
 A typical setup:
 
-- **Audio PC**: small fanless mini-PC. Intel NUC, ASRock DeskMini, Beelink, Minisforum — any modern x86_64 box with at least 4 cores and 8 GB RAM will work.
-- **Storage**: an internal SSD is plenty. Music files don't live here — they live on your LMS server or stream from Qobuz/Tidal/Roon.
-- **Two NICs (optional but ideal)**: one for your LAN (control points, internet), one for a direct point-to-point link to the Diretta target. The RTL8156 USB-Ethernet adapter is widely reported to work well; plug it into a USB 3.0 port.
+- **Audio PC**: small fanless mini-PC. Intel NUC, ASRock DeskMini, Beelink, Minisforum — any modern x86_64 box with at least 4 cores. **8 GB RAM is the bare minimum; 16–32 GB is recommended** (the wizard runs comfortably in 8 GB but headroom helps the kernel page-cache the music stream and keeps any background dnf/update from spilling to disk during playback).
+- **Storage**: an internal SSD is plenty — 60–120 GB is more than enough. Music files don't live here; they live on your LMS/Minimserver/Roon server or stream from Qobuz/Tidal...
+- **Two NICs (optional but ideal)**: one for your LAN (control points, internet), one for a direct point-to-point link to the Diretta target. For the Diretta link, a **USB-Ethernet adapter with the Realtek RTL8156 chipset** is the reference choice — it's also the only NIC family that supports MTU **16128** (other modern NICs top out at jumbo 9014, which is fine for most setups). Plug it into a **USB 3.0** port (the blue one, or marked "SS"), not USB 2.0. If you have a free PCIe slot in your PC, you can plug in a PCIe NIC with a PCIe NIC with **the realtek RTL8156 chipset**.
 
 Single-NIC setups also work — the wizard handles that case automatically.
 
@@ -66,7 +66,6 @@ Single-NIC setups also work — the wizard handles that case automatically.
 
 These choices matter, and some of them can't be changed once the OS is installed. Enter your BIOS / UEFI setup (usually by pressing **F2**, **F12**, **Del**, or **Esc** right after power-on).
 
-> [TODO: screenshot of a typical BIOS settings page]
 
 - **Secure Boot: OFF** — required. The real-time kernel this wizard installs cannot be signed, so Secure Boot would prevent it from booting.
 - **CPU C-states: OFF** (or "C0/C1 only") — prevents the CPU from entering deep sleep that adds latency.
@@ -79,13 +78,13 @@ These choices matter, and some of them can't be changed once the OS is installed
 
 Save, exit, and let the machine reboot.
 
-## 3. Download the Fedora 43 ISO
+## 3. Download the Fedora ISO
 
 On your **main computer** (not the audio PC):
 
 1. Open https://fedoraproject.org/server/download in your browser.
 2. Pick **Network Install** (netinst) for **x86_64**.
-3. Save the file. The name looks like `Fedora-Server-netinst-x86_64-43-*.iso`.
+3. Save the file. The name looks like `Fedora-Server-netinst-x86_64-44-*.iso` (or `-43-` if you deliberately pick Fedora 43 — the wizard supports both).
 
 > Why netinst and not the Live image? The Live image installs a bunch of software you'd just remove afterwards. Netinst lets you start from a truly minimal base.
 
@@ -100,11 +99,11 @@ The easiest cross-platform tool is **balenaEtcher**.
 5. Click **Select target** → choose your USB stick. **Triple-check this** — it will erase whatever you point at.
 6. Click **Flash!** and wait for the operation to finish and verify.
 
-> [TODO: screenshot of balenaEtcher's three-step UI]
+![balenaEtcher — Flash from file, Select target, Flash](../images/en/01-balena-etcher.jpg)
 
 Eject the USB stick cleanly when done.
 
-## 5. Install Fedora 43 minimal
+## 5. Install Fedora minimal
 
 Plug the USB stick into the audio PC, plus screen, keyboard, mouse, and the Ethernet cable to your LAN.
 
@@ -112,13 +111,17 @@ Plug the USB stick into the audio PC, plus screen, keyboard, mouse, and the Ethe
 2. Pick the USB stick from the boot menu. The Fedora installer (called Anaconda) starts.
 3. After a few seconds, the **Welcome to Fedora** screen appears. Click **Install Fedora**.
 
-> [TODO: screenshot of Anaconda welcome screen]
-
-You now see the **Installation Summary**. Configure each section in turn:
+![Anaconda welcome screen — Install Fedora](../images/en/02-anaconda-welcome.jpg)
 
 ### 5.1 Language and keyboard
 
 Pick your language (e.g. English (United States)) and keyboard layout. Click **Done**.
+
+![Anaconda language and keyboard selection](../images/en/03-anaconda-language.jpg)
+
+You now see the **Installation Summary** — the hub from which you configure each section. You'll come back to this screen between every step below.
+
+![Anaconda Installation Summary hub](../images/en/04-anaconda-summary.jpg)
 
 ### 5.2 Installation destination
 
@@ -128,17 +131,17 @@ Click **Installation Destination**.
 - Storage configuration: **Automatic**.
 - Click **Done**. If prompted to confirm, accept.
 
-> [TODO: screenshot of installation destination]
+![Anaconda Installation Destination — internal SSD, Automatic partitioning](../images/en/05-anaconda-destination.jpg)
 
 ### 5.3 Software selection — CRITICAL
 
 Click **Software Selection**.
 
-- Base environment: **Minimal Install** (this is the most important step in the whole installer — anything else installs software we'd remove later).
+- Base environment: **Fedora Custom Operating System** (this is the most important step in the whole installer — anything else installs software we'd remove later).
 - **Do NOT** tick any add-on group on the right.
 - Click **Done**.
 
-> [TODO: screenshot showing 'Minimal Install' selected and all add-ons unchecked]
+![Anaconda Software Selection — Fedora Custom Operating System, no add-ons](../images/en/06-anaconda-software.jpg)
 
 ### 5.4 Network and hostname
 
@@ -148,13 +151,18 @@ Click **Network & Host Name**.
 - Set the hostname to something memorable, e.g. `audio-pc` or `diretta-renderer`.
 - Click **Done**.
 
+![Anaconda Network and Host Name screen](../images/en/07-anaconda-network.jpg)
+
 ### 5.5 Root password
 
 Click **Root Password**.
 
+- Tick Enable root account
 - Set a strong root password. You won't use it often, but you'll need it for emergencies.
 - Tick **Allow root SSH login with password** so you can rescue the box remotely if needed.
 - Click **Done**.
+
+![Anaconda Root Password screen](../images/en/08-anaconda-rootpw.jpg)
 
 ### 5.6 User account
 
@@ -164,6 +172,8 @@ Click **User Creation**.
 - User name: short and lowercase, e.g. `dommusic`. This is the account you'll use day to day.
 - Tick **Make this user administrator** (this puts the user in the `wheel` group and lets them `sudo`).
 - Set a password. Click **Done**.
+
+![Anaconda User Creation screen — make this user administrator](../images/en/09-anaconda-user.jpg)
 
 ### 5.7 Begin install + reboot
 
@@ -185,6 +195,12 @@ ip addr show
 
 Look for a line like `inet 192.168.1.104/24` under your Ethernet interface (e.g. `enp5s0`). Write that address down — you'll SSH to it next.
 
+Then make sure SSH is running on the audio PC. While you still have a session on the audio PC (logged in locally), run:
+
+```bash
+sudo dnf install -y openssh-server
+sudo systemctl enable --now sshd
+```
 You can now unplug the screen, keyboard, and mouse from the audio PC. Move to your main computer.
 
 ---
@@ -195,14 +211,7 @@ Everything from here is done over SSH from your main computer.
 
 ## 7. Connect via SSH
 
-First, make sure SSH is running on the audio PC. While you still have a session on the audio PC (logged in locally), run:
-
-```bash
-sudo dnf install -y openssh-server
-sudo systemctl enable --now sshd
-```
-
-Then from your **main computer** (Terminal on Mac/Linux, PowerShell on Windows 10+):
+From your **main computer** (Terminal on Mac/Linux, PowerShell on Windows 10+):
 
 ```bash
 ssh dommusic@192.168.1.104
@@ -302,7 +311,7 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 10 install-drup | NIC selection | Pick the NIC connected to your Diretta target. The other (with an IP) is your LAN side. |
 | 10 install-drup | `Build DRUP with Clang + LTO?` | **Y** (Enter) — better audio quality, slightly longer build. |
 | 10 install-drup | DRUP's own `Configure firewall?` prompt | **N** — you disabled firewalld at step 05. Answering Y here would abort the script. |
-| 10 install-drup | DRUP's MTU prompt | **9014** (jumbo, default) unless your Diretta target supports 16128. |
+| 10 install-drup | DRUP's MTU prompt | **9014** (jumbo, default) on most NICs. Pick **16128** only if you have a Realtek RTL8156 adapter AND your Diretta target also supports 16128. |
 | 11 install-slim2diretta | `Install slim2Diretta?` | **Y** if you stream from LMS / Lyrion Music Server. Otherwise **n**. |
 | 11 install-slim2diretta | `LMS server IP?` | Leave empty for auto-discovery, or type the LMS IP. |
 | 99 finalize | `Reboot now?` | **N** (Enter) for the first run — let's verify what's installed before rebooting. |
@@ -357,17 +366,18 @@ If anything is wrong, see [§17 Troubleshooting](#17-troubleshooting-common-issu
 
 On your phone, tablet, or computer (same network), use a UPnP control point:
 
-- **Audirvana** (Mac / Windows)
+- **Audirvana** (Mac / Windows /Linux)
 - **JPlay** (iOS)
 - **mConnect** (iOS / Android)
 - **BubbleUPnP** (Android)
-- **Roon** (with the device shown as a Squeezebox)
+- **Tune Server** (Mac / Windows / Linux)
 
 Look for a device named **Diretta Renderer** (or whatever you set in `/etc/default/diretta-renderer` as `NAME`). Pick a track and play.
 
 ### If you installed slim2Diretta
 
 In your LMS / Lyrion Music Server admin page, the audio PC appears as a new player named `slim2diretta` (or your chosen name). Pick it as the playback target.
+Slim2Diretta works with Roon too with Squeezebox mode enabled in Roon.
 
 The first sound should reach your Diretta target / DAC within a second.
 
@@ -439,7 +449,7 @@ For when you want to redo the whole thing from memory:
 
 ```bash
 # === Part A: at the machine ===
-# (Install Fedora 43 Server netinst, minimal install — see §5.)
+# (Install Fedora 43 or 44 Server netinst, minimal install — see §5.)
 
 # === Part B: SSH from your main computer ===
 
