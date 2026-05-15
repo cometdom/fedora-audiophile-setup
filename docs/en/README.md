@@ -9,6 +9,18 @@ Project documentation, English-first.
 - [Post-install tuning reference](post-install-tuning.md) — what the wizard does, module by module, and why each tweak matters.
 - [Design notes](design-notes.md) — architectural decisions and conventions. Read this before adding a new module.
 
+## Building a PDF
+
+Any guide here can be rendered to a styled PDF (handy for printing or sharing offline):
+
+```bash
+sudo dnf install -y pandoc weasyprint
+./scripts/build-pdf.sh                              # newbie walkthrough (default)
+./scripts/build-pdf.sh docs/en/post-install-tuning.md
+```
+
+The PDF lands next to the source `.md`. Styling lives in [`docs/pdf.css`](../pdf.css).
+
 ## Translations
 
 Translations of these guides will be added once the English source is stable. Planned next:
