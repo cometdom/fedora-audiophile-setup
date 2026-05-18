@@ -11,7 +11,7 @@ The modules in `modules/` are numbered (`00-` through `99-`) and executed in tha
 | # | Module | What it does | Status |
 |---|--------|--------------|--------|
 | 00 | preflight | Verify Fedora 43/44, x86_64, Secure Boot off, IPv6 on; auto-install curl/mokutil/grubby/dnf-plugins-core | Done |
-| 01 | kernel-rt | Install PREEMPT_RT kernel from `@kernel-vanilla/stable` COPR, set it as the default GRUB entry | Done |
+| 01 | kernel-rt | Install PREEMPT_RT kernel from `@kernel-vanilla/stable` COPR, verify RT by content, set it as the default GRUB entry | Done |
 | 02 | system-tuning | Run the DRUP `diretta-renderer-tuner` (`apply`) for isolcpus/IRQ/slice/governor | Done |
 | 03 | network-stack | Keep NetworkManager (tuned) or switch to systemd-networkd — user's choice | Done |
 | 04 | tmpfs-disk | Make journald volatile, optionally move `/var/log` and `/var/tmp` to tmpfs | Done |
@@ -36,15 +36,19 @@ Hard pre-conditions, all blocking: distribution is Fedora 43 or 44, architecture
 
 ### 01 — kernel-rt
 
-Enables the kernel-vanilla COPR and installs the realtime kernel, then makes it the default boot entry so the single planned reboot lands on `kernel-rt`:
+Enables the kernel-vanilla COPR and installs the realtime kernel, then makes it the default boot entry so the single planned reboot lands on the RT kernel:
 
 ```bash
 dnf -y copr enable @kernel-vanilla/stable
 dnf -y install kernel-rt kernel-rt-core kernel-rt-modules
-grubby --set-default=/boot/vmlinuz-<...>rt<...>
+grubby --set-default=/boot/vmlinuz-<rpm-derived V-R.arch>
 ```
 
-Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories. Idempotent: skips when kernel-rt is already installed and already the default.
+Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories.
+
+The vmlinuz is located **via RPM** (`rpm -q kernel-rt-core` → its exact `VERSION-RELEASE.ARCH` → `/boot/vmlinuz-<that>`), not by grepping file names — a kernel's RT-ness is not reliably encoded in its name. Before switching the default, the module **verifies `CONFIG_PREEMPT_RT=y`** in the target kernel's `/boot/config-*` and refuses to proceed otherwise. Idempotent: skips when kernel-rt is already installed and already the default. A previously installed kernel is kept (roll back from the GRUB menu).
+
+> A `kernel-cachyos-rt` choice was prototyped in a v1.x branch and dropped — it failed to boot on the maintainer's hardware. The RPM-based detection and the RT content-check are the robustness gains retained from that work.
 
 ### 02 — system-tuning
 

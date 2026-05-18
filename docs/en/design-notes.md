@@ -30,7 +30,24 @@ sudo dnf install kernel-rt kernel-rt-core kernel-rt-modules
 
 Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories
 
-**Pre-condition:** Secure Boot must be OFF in BIOS (vanilla kernels can't be signed). The `00-preflight` module enforces this.
+PREEMPT_RT is non-negotiable — it is the project pillar and the rest of the
+stack (preflight, tuner, docs) assumes it. The vmlinuz to set as default is
+located **via RPM** (`rpm -q kernel-rt-core` → `/boot/vmlinuz-<V-R.arch>`),
+not by file-name matching, and `01-kernel-rt` **verifies `CONFIG_PREEMPT_RT=y`
+by content** before `grubby --set-default` — a kernel's RT-ness is not
+reliably visible in its file name. The previously installed kernel is not
+removed, so a bad boot is one GRUB menu pick away from recovery.
+
+**A `kernel-cachyos-rt` choice was prototyped and rejected** (v1.x branch):
+the ecosystem (DRUP Fedora guide, Auke, forum) favours CachyOS-RT, but on
+the maintainer's hardware `kernel-cachyos-rt` failed to boot — unacceptable
+for an option aimed at newbies. The RPM-based detection and the RT
+content-check above are the robustness gains kept from that prototype. The
+non-RT `kernel-cachyos-lto` was never in scope (it drops PREEMPT_RT); note
+there is no ready-made RT+LTO package anyway (RT is GCC-only, LTO non-RT-only).
+
+**Pre-condition:** Secure Boot must be OFF in BIOS (the vanilla kernels
+can't be signed). The `00-preflight` module enforces this.
 
 ### Modular dispatcher
 
