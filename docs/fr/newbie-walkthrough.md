@@ -303,6 +303,8 @@ Pour chaque question, la **valeur par défaut** (entre crochets, du type `[Y/n]`
 
 | Module | Question | Réponse recommandée |
 |---|---|---|
+| 01 kernel-rt | `Install/refresh a PREEMPT_RT kernel?` | **Y** (Entrée). |
+| 01 kernel-rt | `Which realtime kernel? 1) vanilla kernel-rt  2) kernel-cachyos-rt` | **1** (Entrée) pour le défaut sûr. Choisissez **2** seulement si vous voulez spécifiquement CachyOS-RT (BORE + réglages Cachy). Les deux conservent PREEMPT_RT. |
 | 02 system-tuning | `Use the -nosmt tuner variant?` | **N** (Entrée) — gardez l'Hyper-Threading activé ; le système épingle quand même correctement les threads audio. |
 | 03 network-stack | `K) Keep NetworkManager / S) Switch to systemd-networkd / N) Skip` | **K** (Entrée) — garder NetworkManager est plus sûr pour une première installation. |
 | 04 tmpfs-disk | `Mount /var/log and /var/tmp as tmpfs?` | **Y** (Entrée) — zéro écriture disque pendant la lecture. |

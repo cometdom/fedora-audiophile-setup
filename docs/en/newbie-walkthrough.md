@@ -302,6 +302,8 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 
 | Module | Prompt | Recommended answer |
 |---|---|---|
+| 01 kernel-rt | `Install/refresh a PREEMPT_RT kernel?` | **Y** (Enter). |
+| 01 kernel-rt | `Which realtime kernel? 1) vanilla kernel-rt  2) kernel-cachyos-rt` | **1** (Enter) for the safe default. Pick **2** only if you specifically want CachyOS-RT (BORE + Cachy tweaks). Both keep PREEMPT_RT. |
 | 02 system-tuning | `Use the -nosmt tuner variant?` | **N** (Enter) — keep Hyper-Threading on; the OS still pins audio threads correctly. |
 | 03 network-stack | `K) Keep NetworkManager / S) Switch to systemd-networkd / N) Skip` | **K** (Enter) — keeping NetworkManager is safer for first-time setups. |
 | 04 tmpfs-disk | `Mount /var/log and /var/tmp as tmpfs?` | **Y** (Enter) — zero disk writes during playback. |
