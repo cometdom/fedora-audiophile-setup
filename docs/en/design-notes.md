@@ -19,18 +19,47 @@ Turn a **clean Fedora 43 or 44 minimal install** into a tuned audiophile playbac
 
 ## Key architectural choices
 
-### RT kernel via COPR, not from-source
+### RT kernel via COPR, not from-source — with a choice of RT flavour
 
-Use `@kernel-vanilla/stable` COPR (maintained by Thorsten Leemhuis since 2012):
+The wizard installs a pre-built **PREEMPT_RT** kernel from a COPR (no
+from-source compile in this module — that is a separate Roadmap item).
+PREEMPT_RT itself is non-negotiable: it is the project pillar, and the rest
+of the stack (preflight, tuner, docs) assumes it.
 
-```bash
-sudo dnf -y copr enable @kernel-vanilla/stable
-sudo dnf install kernel-rt kernel-rt-core kernel-rt-modules
-```
+`01-kernel-rt` offers **two RT choices** (both keep PREEMPT_RT):
 
-Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories
+1. **vanilla `kernel-rt`** — COPR `@kernel-vanilla/stable`, maintained by
+   Thorsten Leemhuis since 2012. **Default**, safest, newbie-friendly.
 
-**Pre-condition:** Secure Boot must be OFF in BIOS (vanilla kernels can't be signed). The `00-preflight` module enforces this.
+   ```bash
+   sudo dnf -y copr enable @kernel-vanilla/stable
+   sudo dnf install kernel-rt kernel-rt-core kernel-rt-modules
+   ```
+
+   Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories
+
+2. **`kernel-cachyos-rt`** — COPR `bieszczaders/kernel-cachyos` (CachyOS RT
+   + BORE + Cachy tweaks, GCC build). Opt-in; aligned with the DRUP Fedora
+   guide and community practice.
+
+   ```bash
+   sudo dnf -y copr enable bieszczaders/kernel-cachyos
+   sudo dnf install kernel-cachyos-rt kernel-cachyos-rt-devel-matched
+   ```
+
+History: this was originally vanilla-only (v1.0). The choice was added
+in v1.x because the ecosystem (DRUP Fedora guide, Auke's host.sh, forum
+feedback) shows CachyOS-RT is a legitimate, often-preferred RT option for
+audio. **Deliberately excluded:** the non-RT `kernel-cachyos-lto` (BORE +
+LTO, no PREEMPT_RT) — it would contradict the project's RT pillar. There
+is no ready-made RT+LTO package (RT is GCC-only, LTO is non-RT-only).
+
+The chosen variant is installed and set as the default GRUB entry; a
+previously installed RT kernel is **not** removed, so recovery is one GRUB
+menu pick away.
+
+**Pre-condition:** Secure Boot must be OFF in BIOS (these kernels can't be
+signed). The `00-preflight` module enforces this.
 
 ### Modular dispatcher
 

@@ -11,7 +11,7 @@ The modules in `modules/` are numbered (`00-` through `99-`) and executed in tha
 | # | Module | What it does | Status |
 |---|--------|--------------|--------|
 | 00 | preflight | Verify Fedora 43/44, x86_64, Secure Boot off, IPv6 on; auto-install curl/mokutil/grubby/dnf-plugins-core | Done |
-| 01 | kernel-rt | Install PREEMPT_RT kernel from `@kernel-vanilla/stable` COPR, set it as the default GRUB entry | Done |
+| 01 | kernel-rt | Install a PREEMPT_RT kernel (choice: vanilla `kernel-rt` *(default)* or `kernel-cachyos-rt`), set it as the default GRUB entry | Done |
 | 02 | system-tuning | Run the DRUP `diretta-renderer-tuner` (`apply`) for isolcpus/IRQ/slice/governor | Done |
 | 03 | network-stack | Keep NetworkManager (tuned) or switch to systemd-networkd — user's choice | Done |
 | 04 | tmpfs-disk | Make journald volatile, optionally move `/var/log` and `/var/tmp` to tmpfs | Done |
@@ -36,15 +36,23 @@ Hard pre-conditions, all blocking: distribution is Fedora 43 or 44, architecture
 
 ### 01 — kernel-rt
 
-Enables the kernel-vanilla COPR and installs the realtime kernel, then makes it the default boot entry so the single planned reboot lands on `kernel-rt`:
+Prompts for the RT flavour (both keep PREEMPT_RT), enables the matching COPR, installs the kernel, then makes it the default boot entry so the single planned reboot lands on the realtime kernel:
 
-```bash
-dnf -y copr enable @kernel-vanilla/stable
-dnf -y install kernel-rt kernel-rt-core kernel-rt-modules
-grubby --set-default=/boot/vmlinuz-<...>rt<...>
-```
+- **vanilla `kernel-rt`** *(default, safest)* — COPR `@kernel-vanilla/stable` (Thorsten Leemhuis):
 
-Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories. Idempotent: skips when kernel-rt is already installed and already the default.
+  ```bash
+  dnf -y copr enable @kernel-vanilla/stable
+  dnf -y install kernel-rt kernel-rt-core kernel-rt-modules
+  ```
+
+- **`kernel-cachyos-rt`** *(opt-in)* — COPR `bieszczaders/kernel-cachyos` (CachyOS RT + BORE):
+
+  ```bash
+  dnf -y copr enable bieszczaders/kernel-cachyos
+  dnf -y install kernel-cachyos-rt kernel-cachyos-rt-devel-matched
+  ```
+
+Then `grubby --set-default=` the chosen variant's `/boot/vmlinuz-*`. Reference: https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories. The non-RT `kernel-cachyos-lto` is intentionally **not** offered (it drops PREEMPT_RT). Variant-aware idempotency: skips when the chosen variant is already installed and already the default. A previously installed RT kernel is kept (roll back from the GRUB menu).
 
 ### 02 — system-tuning
 
