@@ -31,6 +31,7 @@ _kr_variant=""          # vanilla | cachyos-rt
 _kr_copr=""             # COPR repo to enable
 _kr_label=""            # human label for logs
 _kr_pkgs=()             # packages to dnf install
+_kr_core_pkg=""         # the -core package that owns the vmlinuz (drives detection)
 
 _kernel_check_internet() {
     if command -v curl >/dev/null 2>&1; then
@@ -47,19 +48,22 @@ _kernel_check_internet() {
 }
 
 # Print the /boot vmlinuz of the chosen variant (most recent), or empty.
-#   vanilla    : name contains '-rt' and NOT 'cachyos'
-#   cachyos-rt : name contains 'cachyos' and 'rt'
+#
+# Derived from RPM, not from the file name: a kernel's vmlinuz is
+# /boot/vmlinuz-<VERSION>-<RELEASE>.<ARCH>, and the variant's -core package
+# carries exactly that V-R-arch. Name-grepping is unreliable — the vanilla
+# kernel-rt encodes "rt" in its RELEASE (e.g. ...-rt1.fc44...) but the
+# CachyOS-RT vmlinuz is just vmlinuz-7.0.5-cachyos1.fc44.x86_64 with NO
+# "rt" anywhere in the name. Querying the -core package is deterministic
+# for both. If several versions are installed, take the newest (sort -V).
 _kernel_find_vmlinuz() {
-    case "$_kr_variant" in
-        vanilla)
-            find /boot -maxdepth 1 -name 'vmlinuz-*' -type f 2>/dev/null \
-                | grep -E '\-rt' | grep -v cachyos | sort -V | tail -1
-            ;;
-        cachyos-rt)
-            find /boot -maxdepth 1 -name 'vmlinuz-*cachyos*' -type f 2>/dev/null \
-                | grep -E 'rt' | sort -V | tail -1
-            ;;
-    esac
+    [[ -n "$_kr_core_pkg" ]] || return 0
+    local kver v
+    kver=$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' "$_kr_core_pkg" 2>/dev/null \
+        | sort -V | tail -1 || true)
+    [[ -n "$kver" ]] || return 0
+    v="/boot/vmlinuz-${kver}"
+    [[ -f "$v" ]] && echo "$v"
 }
 
 _kernel_default_is_chosen() {
@@ -91,15 +95,17 @@ _kernel_pick_variant() {
             _kr_copr="@kernel-vanilla/stable"
             _kr_label="vanilla kernel-rt"
             _kr_pkgs=(kernel-rt kernel-rt-core kernel-rt-modules)
+            _kr_core_pkg="kernel-rt-core"
             ;;
         2)
             _kr_variant="cachyos-rt"
             _kr_copr="bieszczaders/kernel-cachyos"
             _kr_label="kernel-cachyos-rt"
             # Package set follows the DRUP Fedora guide; -devel-matched pulls
-            # the matching core/modules. Adjust here if upstream changes the
-            # subpackage names.
+            # the matching core/modules. Adjust here (and _kr_core_pkg) if
+            # upstream changes the subpackage names.
             _kr_pkgs=(kernel-cachyos-rt kernel-cachyos-rt-devel-matched)
+            _kr_core_pkg="kernel-cachyos-rt-core"
             ;;
         *)
             log_error "Invalid choice: ${choice}"
