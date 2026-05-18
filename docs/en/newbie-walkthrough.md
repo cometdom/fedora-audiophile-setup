@@ -311,7 +311,8 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 10 install-drup | NIC selection | Pick the NIC connected to your Diretta target. The other (with an IP) is your LAN side. |
 | 10 install-drup | `Build DRUP with Clang + LTO?` | **Y** (Enter) — better audio quality, slightly longer build. |
 | 10 install-drup | DRUP's own `Configure firewall?` prompt | **N** — you disabled firewalld at step 05. Answering Y here would abort the script. |
-| 10 install-drup | DRUP's MTU prompt | **9014** (jumbo, default) on most NICs. Pick **16128** only if you have a Realtek RTL8156 adapter AND your Diretta target also supports 16128. |
+| 10 / 11 | `MTU for the Diretta NIC` (asked by the wizard) | **2 = 9014** (jumbo, default) on most NICs; **3 = 16128** only with a Realtek RTL8156 NIC AND a target that supports it; **1 = 1500** otherwise. |
+| 10 install-drup | DRUP `install.sh`'s own MTU prompt (later) | Give the **same** answer as above. It's a harmless duplicate (nmcli-based); the wizard's `.link` drop-in is what reliably applies, including under systemd-networkd. |
 | 11 install-slim2diretta | `Install slim2Diretta?` | **Y** if you stream from LMS / Lyrion Music Server. Otherwise **n**. |
 | 11 install-slim2diretta | `LMS server IP?` | Leave empty for auto-discovery, or type the LMS IP. |
 | 99 finalize | `Reboot now?` | **N** (Enter) for the first run — let's verify what's installed before rebooting. |
@@ -419,12 +420,20 @@ If the adapter is in `lsusb` but not in `ip link`, you may need a driver — see
 
 ### "MTU didn't stick"
 
+The wizard persists the Diretta MTU via a systemd-udevd `.link` drop-in, which works under **both** NetworkManager and systemd-networkd. Check it and the live value:
+
 ```bash
-nmcli connection show
-nmcli connection show "diretta-<your-iface>"
+cat /etc/systemd/network/50-audiophile-diretta-*.link   # should show MTUBytes=
+ip link show <your-iface>                                # mtu <value> after a reboot
 ```
 
-Look at `802-3-ethernet.mtu`. If it's `auto`, set it manually:
+If the file is missing or wrong, re-run the install module (it will offer to reconfigure):
+
+```bash
+sudo ./setup.sh --only install-drup        # or: --only install-slim2diretta
+```
+
+To force it by hand, edit `MTUBytes=` in that `.link` file and reboot (the value is applied by udevd at coldplug). On NetworkManager you can also set it live for the current session:
 
 ```bash
 sudo nmcli connection modify "diretta-<your-iface>" 802-3-ethernet.mtu 9014

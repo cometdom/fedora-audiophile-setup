@@ -9,14 +9,14 @@
 #   3. Install ethtool (used by start-renderer at runtime)
 #   4. Interactive NIC selection (Diretta side + control-point side). We
 #      need to know these to post-process /etc/default/diretta-renderer
-#      afterwards. MTU + .link/nmcli persistence is intentionally NOT done
-#      here: DRUP's own install.sh prompts for MTU and persists it via
-#      nmcli, so duplicating it would re-ask the user the same question.
+#      afterwards. We also persist the Diretta MTU via a universal
+#      systemd-udevd .link drop-in (ensure_diretta_mtu_link) — this works
+#      under BOTH NetworkManager and systemd-networkd. DRUP's install.sh
+#      additionally prompts for MTU and writes it via nmcli (NM-only); that
+#      duplicate prompt is harmless — the .link is what reliably applies.
 #   5. git clone DRUP into $HOME/DirettaRendererUPnP (as $SUDO_USER)
 #   6. Run ./install.sh as $SUDO_USER in a real TTY (~30 min for FFmpeg
-#      build); skipped if the binary already exists. THIS is where the user
-#      answers the MTU question, and where DRUP's install.sh writes the
-#      nmcli MTU on the Diretta NIC.
+#      build); skipped if the binary already exists.
 #   7. Run systemd/install-systemd.sh as root (copies binary, conf, service)
 #   8. Post-process /etc/default/diretta-renderer: set INTERFACE,
 #      TARGET_INTERFACE, TARGET
@@ -161,6 +161,11 @@ else
     log_info "Diretta NIC:       ${_drup_diretta_iface}"
     log_info "Control-point NIC: ${_drup_control_iface}"
 fi
+
+# Persist the Diretta NIC MTU via a universal systemd-udevd .link drop-in
+# (works under NetworkManager AND systemd-networkd — unlike the nmcli path
+# in DRUP install.sh, which is a no-op under networkd).
+ensure_diretta_mtu_link "$_drup_diretta_iface"
 
 # Ensure NetworkManager has a connection profile for the Diretta NIC. If it
 # doesn't, DRUP install.sh later fails to persist the MTU ("Could not find

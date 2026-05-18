@@ -104,7 +104,7 @@ Strictly host-wide socket-buffer knobs, written to `/etc/sysctl.d/99-audiophile-
 | `net.core.optmem_max` | 64 KB | Ancillary cmsg room (multicast, hw-timestamping). |
 | `net.core.netdev_max_backlog` | 5000 | Packets buffered between NIC IRQ and userland reads. |
 
-**MTU and ethtool link tuning are not done here.** On a Diretta host there are typically two NICs (WAN/LAN at MTU 1500, Diretta point-to-point up to MTU 16128), and only the install modules know which NIC is which — so MTU + ethtool live in `10-install-drup` / `11-install-slim2diretta`.
+**MTU and ethtool link tuning are not done here.** On a Diretta host there are typically two NICs (WAN/LAN at MTU 1500, Diretta point-to-point up to MTU 16128), and only the install modules know which NIC is which — so the MTU (a universal systemd-udevd `.link` drop-in, NM- and networkd-proof) and ethtool live in `10-install-drup` / `11-install-slim2diretta`.
 
 ### 08 — tuned-profile
 
@@ -116,7 +116,7 @@ Installs `tuned` if absent, enables it, and applies the built-in `latency-perfor
 
 ### 10 — install-drup
 
-Optional (asked up front). Detects `SUDO_USER` (DRUP `install.sh` refuses root) and the manually-downloaded Diretta SDK under `~/DirettaHostSDK_*`. Pre-installs build deps, lets the user pick the Diretta-side NIC, pre-creates a NetworkManager profile for it (so DRUP `install.sh` can persist the MTU), clones DRUP, runs `./install.sh` (optionally `LLVM=1` for a Clang+LTO build), then `systemd/install-systemd.sh`, and post-processes `/etc/default/diretta-renderer` (`INTERFACE`, `TARGET_INTERFACE`, `TARGET`). MTU + jumbo are answered once, inside DRUP's own installer. Service is enabled but not started — it waits for the reboot.
+Optional (asked up front). Detects `SUDO_USER` (DRUP `install.sh` refuses root) and the manually-downloaded Diretta SDK under `~/DirettaHostSDK_*`. Pre-installs build deps, lets the user pick the Diretta-side NIC, then persists that NIC's MTU via a **universal systemd-udevd `.link` drop-in** (`ensure_diretta_mtu_link` in `lib/common.sh`) — read at coldplug, so it works under **both** NetworkManager and systemd-networkd. It also pre-creates a NetworkManager profile for the NIC so DRUP `install.sh`'s own nmcli MTU step doesn't error (NM only). Then it clones DRUP, runs `./install.sh` (optionally `LLVM=1` for a Clang+LTO build), then `systemd/install-systemd.sh`, and post-processes `/etc/default/diretta-renderer` (`INTERFACE`, `TARGET_INTERFACE`, `TARGET`). DRUP's installer prompts for MTU again (nmcli-based, NM-only) — a harmless duplicate; give the same answer. Service is enabled but not started — it waits for the reboot.
 
 ### 11 — install-slim2diretta
 

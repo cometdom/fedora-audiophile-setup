@@ -10,9 +10,11 @@
 #   2. Find Diretta SDK under /home/$SUDO_USER/DirettaHostSDK_*
 #   3. Install ethtool (used by start-slim2diretta at runtime)
 #   4. Interactive NIC selection (Diretta side). Needed to post-process
-#      /etc/default/slim2diretta afterwards. MTU + .link/nmcli is NOT done
-#      here: slim2Diretta's install.sh menu has "5) Configure network"
-#      that prompts for MTU and persists via nmcli — we let it own that.
+#      /etc/default/slim2diretta afterwards. We persist the Diretta MTU via
+#      a universal systemd-udevd .link drop-in (ensure_diretta_mtu_link) —
+#      works under NetworkManager AND systemd-networkd. slim2Diretta's
+#      install.sh "5) Configure network" also prompts MTU via nmcli
+#      (NM-only); harmless duplicate — the .link is what reliably applies.
 #   5. Ask optional LMS server IP (empty → auto-discover via Slimproto)
 #   6. git clone slim2Diretta into $HOME/slim2Diretta (as $SUDO_USER)
 #   7. Run ./install.sh as $SUDO_USER in a real TTY (interactive menu).
@@ -176,6 +178,11 @@ _s2d_ensure_nm_connection() {
         ipv6.method link-local \
         connection.autoconnect yes
 }
+
+# Persist the Diretta NIC MTU via a universal systemd-udevd .link drop-in
+# (works under NetworkManager AND systemd-networkd).
+ensure_diretta_mtu_link "$_s2d_diretta_iface"
+
 _s2d_ensure_nm_connection "$_s2d_diretta_iface"
 
 # --- 5. Optional LMS server IP -------------------------------------------
