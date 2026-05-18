@@ -140,6 +140,27 @@ _kernel_set_default() {
         log_error "${_kr_label} is installed but no matching /boot/vmlinuz-* was found. Cannot set the default GRUB entry."
         exit 1
     fi
+
+    # Safety net: the whole project depends on PREEMPT_RT, and a kernel's
+    # RT-ness is NOT reliably visible in its file name (vanilla suffixes
+    # '+rt'; CachyOS-RT does not — vmlinuz-7.0.5-cachyos1... is RT). Verify
+    # by content so a wrong package can never silently make a non-RT kernel
+    # the default. If the config isn't readable, warn but proceed (don't
+    # block on a corner case).
+    local kver cfg
+    kver="${vmlinuz##*/vmlinuz-}"
+    cfg="/boot/config-${kver}"
+    if [[ -r "$cfg" ]]; then
+        if grep -q '^CONFIG_PREEMPT_RT=y' "$cfg"; then
+            log_info "Verified PREEMPT_RT: ${cfg} has CONFIG_PREEMPT_RT=y"
+        else
+            log_error "Safety check failed: ${vmlinuz} is NOT a PREEMPT_RT kernel (no CONFIG_PREEMPT_RT=y in ${cfg}). Refusing to set a non-RT kernel as default."
+            exit 1
+        fi
+    else
+        log_warn "Cannot verify PREEMPT_RT (${cfg} not readable) — proceeding; the ${_kr_label} package is expected to be RT."
+    fi
+
     log_info "Setting default GRUB entry: ${vmlinuz}"
     run_cmd grubby --set-default="$vmlinuz"
 }
