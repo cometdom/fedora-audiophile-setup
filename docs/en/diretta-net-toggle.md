@@ -34,13 +34,25 @@ sudo ./scripts/diretta-net-toggle.sh bridge        # → target reachable from t
 sudo ./scripts/diretta-net-toggle.sh independent   # → back to normal listening mode
 ```
 
-Interface names default to `enp5s0` (LAN) and `enp4s0` (Diretta). Override if yours differ:
+`bridge` and `independent` ask for confirmation and warn before restarting `systemd-networkd`. `status` changes nothing.
+
+### Interface detection
+
+No hard-coded NIC names — the script resolves the LAN and Diretta NICs in this priority order:
+
+1. **Env override** (expert): `DIRETTA_LAN_IFACE` / `DIRETTA_TARGET_IFACE`.
+   ```bash
+   sudo DIRETTA_LAN_IFACE=enpXsY DIRETTA_TARGET_IFACE=enxAABBCC ./scripts/diretta-net-toggle.sh status
+   ```
+2. **Saved mapping**: `/etc/diretta-net-toggle.conf` (written the first time roles are resolved).
+3. **Auto-detect**: on a 2-NIC host, LAN = the interface holding the default route; Diretta = the other physical ethernet.
+4. **Interactive**: if still ambiguous (0/1 or 3+ NICs, or no default route), it lists the physical ethernet NICs (with link state and IPv4) and asks you to pick.
+
+The resolved pair is **persisted** to the state file. This matters because in `bridge` mode the default route is on the bridge, not on a physical NIC — auto-detection alone couldn't map them back, but the saved file does. Names like `enx00e04c…` (USB RTL8156) are handled fine. To force a fresh detection, delete the state file:
 
 ```bash
-sudo DIRETTA_LAN_IFACE=enpXsY DIRETTA_TARGET_IFACE=enpAsB ./scripts/diretta-net-toggle.sh status
+sudo rm /etc/diretta-net-toggle.conf
 ```
-
-`bridge` and `independent` ask for confirmation and warn before restarting `systemd-networkd`. `status` changes nothing.
 
 ## Firmware-check workflow
 
@@ -52,10 +64,12 @@ sudo DIRETTA_LAN_IFACE=enpXsY DIRETTA_TARGET_IFACE=enpAsB ./scripts/diretta-net-
 
 ## What it writes
 
-All files carry a `# Managed by diretta-net-toggle` first line; switching modes deletes the tool's own files for the other mode and writes the new set under `/etc/systemd/network/`:
+All files carry a `# Managed by diretta-net-toggle` first line; switching modes deletes the tool's own files for the other mode and writes the new set under `/etc/systemd/network/` (`<LAN>` / `<DIR>` are the resolved NIC names):
 
-- **independent**: `10-enp5s0.network` (DHCP) + `10-enp4s0.network` (link-local, `ConfigureWithoutCarrier=yes`).
-- **bridge**: `15-diretta-br0.netdev` + `10-enp5s0.network`/`10-enp4s0.network` (`Bridge=`, `MTUBytes=1500`) + `20-diretta-br0.network` (DHCP, `MTUBytes=1500`).
+- **independent**: `10-<LAN>.network` (DHCP) + `10-<DIR>.network` (link-local, `ConfigureWithoutCarrier=yes`).
+- **bridge**: `15-diretta-br0.netdev` + `10-<LAN>.network`/`10-<DIR>.network` (`Bridge=`, `MTUBytes=1500`) + `20-diretta-br0.network` (DHCP, `MTUBytes=1500`).
+
+Plus the interface mapping at `/etc/diretta-net-toggle.conf` (see *Interface detection* above).
 
 ## Important notes
 
@@ -67,4 +81,5 @@ All files carry a `# Managed by diretta-net-toggle` first line; switching modes 
 
 - *Lost the network / SSH after switching*: wait ~10 s, reconnect to the same IP. From the console: `networkctl status`, `ip -br addr`. Re-run the desired sub-command.
 - *Target didn't get a LAN address in bridge mode*: it may be powered off, or its NIC came up after the bridge — power-cycle the target, then `networkctl reconfigure diretta-br0` (or just re-run `bridge`).
-- *Want to undo completely*: `sudo ./scripts/diretta-net-toggle.sh independent` is the normal "off" state. To hand control back to the wizard, re-run `sudo ./setup.sh --only network-stack` after removing the tool's tagged files.
+- *Wrong NICs detected*: delete `/etc/diretta-net-toggle.conf` and re-run (it re-detects), or pin them explicitly with `DIRETTA_LAN_IFACE=… DIRETTA_TARGET_IFACE=… sudo …` (that also rewrites the state file).
+- *Want to undo completely*: `sudo ./scripts/diretta-net-toggle.sh independent` is the normal "off" state. To hand control back to the wizard, re-run `sudo ./setup.sh --only network-stack` after removing the tool's tagged files (and `/etc/diretta-net-toggle.conf`).

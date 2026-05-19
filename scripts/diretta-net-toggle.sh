@@ -2,42 +2,49 @@
 #
 # diretta-net-toggle.sh — switch a Diretta host's two NICs between:
 #
-#   independent  enp5s0 = LAN (DHCP), enp4s0 = Diretta link (link-local
-#                only, L2). The normal audiophile operating mode.
+#   independent  LAN NIC = LAN (DHCP), Diretta NIC = Diretta link
+#                (link-local only, L2). The normal audiophile mode.
 #
-#   bridge       enp5s0 + enp4s0 enslaved into a bridge that takes the LAN
-#                DHCP lease. The Diretta target (cabled to enp4s0) then
-#                sits on the LAN segment and is reachable from any LAN
-#                host — handy to check/apply a target firmware update
-#                WITHOUT unplugging and recabling it onto a switch.
+#   bridge       LAN NIC + Diretta NIC enslaved into a bridge that takes
+#                the LAN DHCP lease. The Diretta target (cabled to the
+#                Diretta NIC) then sits on the LAN segment and is
+#                reachable from any LAN host — handy to check/apply a
+#                target firmware update WITHOUT unplugging/recabling it.
 #
-# systemd-networkd ONLY (this is the "first step" implementation; a
-# NetworkManager variant could come later). The bridge mode is TRANSIENT:
-# it is pinned to MTU 1500 for LAN compatibility. Switch back to
-# 'independent' for listening — the jumbo udev .link on the Diretta NIC
-# then applies again.
+# systemd-networkd ONLY (NetworkManager variant may come later). The
+# bridge mode is TRANSIENT: pinned to MTU 1500 for LAN compatibility.
+# Switch back to 'independent' for listening (the jumbo udev .link on the
+# Diretta NIC then applies again).
+#
+# Interface resolution (no hard-coded names), in priority order:
+#   1. env vars  DIRETTA_LAN_IFACE / DIRETTA_TARGET_IFACE  (expert override)
+#   2. saved mapping  /etc/diretta-net-toggle.conf
+#   3. auto-detect    LAN = default-route iface; Diretta = the other
+#                     physical ethernet (works on a 2-NIC host)
+#   4. interactive    pick from a list (state link + IPv4 shown)
+# The resolved pair is persisted to the state file so that switching back
+# from 'bridge' (where the default route is on the bridge, not a physical
+# NIC) still maps correctly. Delete the state file to force re-detection.
 #
 # Usage:
 #   sudo ./scripts/diretta-net-toggle.sh status
 #   sudo ./scripts/diretta-net-toggle.sh bridge
 #   sudo ./scripts/diretta-net-toggle.sh independent
 #
-# Interface names default to enp5s0 / enp4s0; override via env:
-#   DIRETTA_LAN_IFACE=...  DIRETTA_TARGET_IFACE=...
-#
-# WARNING: this reconfigures the network. Switching to/from 'bridge'
-# moves the LAN IP between enp5s0 and the bridge, so an SSH session over
-# the LAN WILL drop briefly — prefer a local console, or reconnect after
-# (the DHCP lease is usually re-issued to the same address).
+# WARNING: switching to/from 'bridge' moves the LAN IP between the LAN NIC
+# and the bridge, so an SSH session over the LAN WILL drop briefly —
+# prefer a local console, or reconnect after.
 #
 
 set -euo pipefail
 
-LAN_IFACE="${DIRETTA_LAN_IFACE:-enp5s0}"
-DIRETTA_IFACE="${DIRETTA_TARGET_IFACE:-enp4s0}"
 BRIDGE="diretta-br0"
 NETDIR="/etc/systemd/network"
+STATE_FILE="/etc/diretta-net-toggle.conf"
 TAG="# Managed by diretta-net-toggle"
+
+LAN_IFACE=""
+DIRETTA_IFACE=""
 
 _info()  { echo "[net-toggle] $*"; }
 _warn()  { echo "[net-toggle] WARNING: $*" >&2; }
@@ -53,17 +60,149 @@ _require_root() {
 _require_networkd() {
     if ! systemctl is-active --quiet systemd-networkd; then
         _err "systemd-networkd is not active. This tool only supports systemd-networkd."
-        _err "(If you are on NetworkManager, this script does not apply — see docs.)"
         exit 1
     fi
 }
 
-# A managed file is one whose first line is our TAG.
+# --- Interface discovery --------------------------------------------------
+
+# Physical ethernet interfaces (excludes lo, virtual devices incl. the
+# bridge, non-ethernet). One per line.
+_phys_eth_ifaces() {
+    local sys iface
+    for sys in /sys/class/net/*; do
+        iface=$(basename "$sys")
+        [[ "$iface" == "lo" ]] && continue
+        [[ "$(readlink -f "$sys")" == */devices/virtual/* ]] && continue
+        [[ "$(cat "${sys}/type" 2>/dev/null)" == "1" ]] || continue
+        echo "$iface"
+    done
+}
+
+_default_route_iface() {
+    ip -o route show default 2>/dev/null | awk '{print $5; exit}'
+}
+
+_iface_descr() {
+    local iface="$1" state addr
+    state=$(cat "/sys/class/net/${iface}/operstate" 2>/dev/null || echo "?")
+    addr=$(ip -o -4 addr show dev "$iface" 2>/dev/null | awk '{print $4; exit}')
+    printf '%s  (link %s, %s)' "$iface" "$state" "${addr:-no IPv4}"
+}
+
+_save_state() {
+    cat > "$STATE_FILE" <<EOF
+# diretta-net-toggle interface mapping
+# Auto-generated. Delete this file to force re-detection.
+LAN_IFACE=${LAN_IFACE}
+DIRETTA_IFACE=${DIRETTA_IFACE}
+EOF
+    _info "saved interface mapping to ${STATE_FILE} (LAN=${LAN_IFACE}, Diretta=${DIRETTA_IFACE})."
+}
+
+# Parse the state file WITHOUT sourcing it (no arbitrary code execution).
+_load_state() {
+    [[ -r "$STATE_FILE" ]] || return 1
+    local l d
+    l=$(grep -E '^LAN_IFACE=' "$STATE_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)
+    d=$(grep -E '^DIRETTA_IFACE=' "$STATE_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)
+    [[ -n "$l" && -n "$d" ]] || return 1
+    LAN_IFACE="$l"; DIRETTA_IFACE="$d"
+    return 0
+}
+
+# Try to auto-detect: LAN = default-route iface (must be a physical eth),
+# Diretta = the only other physical eth. Returns 1 if ambiguous.
+_auto_detect() {
+    local -a eth=()
+    local i
+    while IFS= read -r i; do eth+=("$i"); done < <(_phys_eth_ifaces)
+    [[ ${#eth[@]} -eq 2 ]] || return 1
+    local def; def=$(_default_route_iface)
+    [[ -n "$def" ]] || return 1
+    local is_phys=0 other=""
+    for i in "${eth[@]}"; do
+        [[ "$i" == "$def" ]] && is_phys=1 || other="$i"
+    done
+    [[ $is_phys -eq 1 && -n "$other" ]] || return 1
+    LAN_IFACE="$def"; DIRETTA_IFACE="$other"
+    return 0
+}
+
+_pick_iface() {
+    local prompt="$1"; shift
+    local -a choices=("$@") i pick
+    {
+        echo
+        echo "$prompt"
+        for i in "${!choices[@]}"; do
+            printf '  %d) %s\n' "$((i+1))" "$(_iface_descr "${choices[i]}")"
+        done
+    } >&2
+    while true; do
+        read -r -p "Number [1]: " pick
+        pick="${pick:-1}"
+        if [[ "$pick" =~ ^[1-9][0-9]*$ ]] && (( pick >= 1 && pick <= ${#choices[@]} )); then
+            echo "${choices[$((pick-1))]}"
+            return 0
+        fi
+        echo "Invalid choice." >&2
+    done
+}
+
+_interactive_resolve() {
+    local -a eth=()
+    local i
+    while IFS= read -r i; do eth+=("$i"); done < <(_phys_eth_ifaces)
+    if [[ ${#eth[@]} -lt 2 ]]; then
+        _err "need at least two physical ethernet NICs; found ${#eth[@]}. Plug both NICs in, or set DIRETTA_LAN_IFACE / DIRETTA_TARGET_IFACE."
+        exit 1
+    fi
+    LAN_IFACE=$(_pick_iface "Which NIC is connected to your LAN/router?" "${eth[@]}")
+    local -a rest=()
+    for i in "${eth[@]}"; do
+        [[ "$i" != "$LAN_IFACE" ]] && rest+=("$i")
+    done
+    if [[ ${#rest[@]} -eq 1 ]]; then
+        DIRETTA_IFACE="${rest[0]}"
+    else
+        DIRETTA_IFACE=$(_pick_iface "Which NIC is connected to the Diretta target?" "${rest[@]}")
+    fi
+}
+
+# Resolve LAN_IFACE/DIRETTA_IFACE. Mode "ro" = read-only, never prompts or
+# writes (for 'status'); returns 1 if it cannot resolve. Mode "rw" =
+# may prompt and persists the mapping (for 'bridge'/'independent').
+_resolve_ifaces() {
+    local mode="$1"
+
+    if [[ -n "${DIRETTA_LAN_IFACE:-}" && -n "${DIRETTA_TARGET_IFACE:-}" ]]; then
+        LAN_IFACE="$DIRETTA_LAN_IFACE"; DIRETTA_IFACE="$DIRETTA_TARGET_IFACE"
+        [[ "$mode" == "rw" ]] && _save_state
+        return 0
+    fi
+    if _load_state; then
+        return 0
+    fi
+    if _auto_detect; then
+        [[ "$mode" == "rw" ]] && _save_state
+        return 0
+    fi
+    if [[ "$mode" == "ro" ]]; then
+        return 1
+    fi
+    _warn "could not auto-detect the NIC roles — asking."
+    _interactive_resolve
+    _save_state
+    return 0
+}
+
+# --- Managed files --------------------------------------------------------
+
 _is_managed() {
     [[ -f "$1" ]] && [[ "$(head -1 "$1" 2>/dev/null)" == "$TAG" ]]
 }
 
-# Candidate files this tool may have written.
 _managed_candidates() {
     printf '%s\n' \
         "${NETDIR}/10-${LAN_IFACE}.network" \
@@ -93,9 +232,6 @@ _current_mode() {
 }
 
 _warn_unmanaged_conflicts() {
-    # The wizard's module 03 (network-stack → S) writes
-    # 10-<iface>.network tagged "# Generated by fedora-audiophile-setup".
-    # We overwrite those names; warn so the user knows this tool takes over.
     local f
     for f in "${NETDIR}/10-${LAN_IFACE}.network" "${NETDIR}/10-${DIRETTA_IFACE}.network"; do
         if [[ -f "$f" ]] && ! _is_managed "$f"; then
@@ -133,8 +269,6 @@ ${TAG}
 Name=${BRIDGE}
 Kind=bridge
 EOF
-    # Ports pinned to 1500 so the bridged segment is LAN-compatible
-    # (the Diretta NIC's jumbo udev .link is overridden while bridged).
     cat > "${NETDIR}/10-${LAN_IFACE}.network" <<EOF
 ${TAG}
 [Match]
@@ -178,48 +312,53 @@ _apply() {
 }
 
 _confirm() {
-    local prompt="$1" ans
-    read -r -p "${prompt} [y/N] " ans
+    local ans
+    read -r -p "$1 [y/N] " ans
     [[ "$ans" =~ ^[Yy]$ ]]
 }
 
 cmd_status() {
-    echo "Mode (per managed files): $(_current_mode)"
-    echo
-    echo "Managed files present:"
-    local f any=0
-    while IFS= read -r f; do
-        if _is_managed "$f"; then echo "  $f"; any=1; fi
-    done < <(_managed_candidates)
-    [[ $any -eq 0 ]] && echo "  (none — network not managed by this tool)"
-    echo
-    echo "Interfaces:"
-    ip -br addr show "$LAN_IFACE" 2>/dev/null || true
-    ip -br addr show "$DIRETTA_IFACE" 2>/dev/null || true
-    ip -br addr show "$BRIDGE" 2>/dev/null || true
-    echo
-    networkctl --no-pager status "$LAN_IFACE" "$DIRETTA_IFACE" 2>/dev/null \
-        | sed -n '1,12p' || true
+    if _resolve_ifaces ro; then
+        echo "LAN NIC: ${LAN_IFACE}    Diretta NIC: ${DIRETTA_IFACE}"
+        echo "Mode (per managed files): $(_current_mode)"
+        echo
+        echo "Managed files present:"
+        local f any=0
+        while IFS= read -r f; do
+            if _is_managed "$f"; then echo "  $f"; any=1; fi
+        done < <(_managed_candidates)
+        [[ $any -eq 0 ]] && echo "  (none — network not managed by this tool yet)"
+        echo
+        echo "Interfaces:"
+        ip -br addr show "$LAN_IFACE" 2>/dev/null || true
+        ip -br addr show "$DIRETTA_IFACE" 2>/dev/null || true
+        ip -br addr show "$BRIDGE" 2>/dev/null || true
+    else
+        echo "Interface roles not resolved yet (no env override, no ${STATE_FILE},"
+        echo "and auto-detection was ambiguous)."
+        echo "Run 'sudo $0 independent' (or 'bridge') once to detect/choose and"
+        echo "persist the mapping, or set DIRETTA_LAN_IFACE / DIRETTA_TARGET_IFACE."
+        echo
+        echo "Physical ethernet NICs seen:"
+        local i
+        while IFS= read -r i; do echo "  $(_iface_descr "$i")"; done < <(_phys_eth_ifaces)
+    fi
 }
 
 cmd_switch() {
     local target="$1"
     _require_root
     _require_networkd
+    _resolve_ifaces rw
+    _info "LAN NIC: ${LAN_IFACE}   Diretta NIC: ${DIRETTA_IFACE}"
     local cur; cur=$(_current_mode)
     if [[ "$cur" == "$target" ]]; then
         _info "already in '${target}' mode (per managed files)."
-        if ! _confirm "Re-apply '${target}' anyway?"; then
-            _info "nothing to do."
-            return 0
-        fi
+        _confirm "Re-apply '${target}' anyway?" || { _info "nothing to do."; return 0; }
     fi
     _warn_unmanaged_conflicts
     _warn "this will restart systemd-networkd. An SSH session over ${LAN_IFACE} may drop."
-    if ! _confirm "Switch to '${target}' now?"; then
-        _info "aborted."
-        return 0
-    fi
+    _confirm "Switch to '${target}' now?" || { _info "aborted."; return 0; }
     _clean_managed
     case "$target" in
         independent) _write_independent ;;
@@ -238,13 +377,14 @@ main() {
             cat >&2 <<EOF
 Usage: sudo $0 {status|bridge|independent}
 
-  status        show the current mode and interface state (read-only)
-  bridge        enslave ${LAN_IFACE}+${DIRETTA_IFACE} into ${BRIDGE} (LAN
-                DHCP, MTU 1500) — target reachable from the LAN, TRANSIENT
-  independent   ${LAN_IFACE}=LAN DHCP, ${DIRETTA_IFACE}=Diretta link-local
-                — the normal audiophile mode
+  status        show resolved NIC roles, current mode, iface state (read-only)
+  bridge        enslave LAN+Diretta NICs into ${BRIDGE} (LAN DHCP, MTU
+                1500) — target reachable from the LAN, TRANSIENT
+  independent   LAN NIC = LAN DHCP, Diretta NIC = link-local — normal mode
 
-Override iface names: DIRETTA_LAN_IFACE=... DIRETTA_TARGET_IFACE=...
+NIC roles are auto-detected and saved to ${STATE_FILE}
+(delete it to re-detect). Expert override:
+  DIRETTA_LAN_IFACE=... DIRETTA_TARGET_IFACE=...
 EOF
             exit 2
             ;;
