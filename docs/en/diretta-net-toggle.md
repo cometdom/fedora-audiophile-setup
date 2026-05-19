@@ -1,0 +1,86 @@
+# Diretta NIC toggle — bridge ⇄ independent (systemd-networkd)
+
+A small companion tool ([`scripts/diretta-net-toggle.sh`](../../scripts/diretta-net-toggle.sh)) to flip a two-NIC Diretta host between its normal **independent** networking and a temporary **bridge** mode.
+
+Why: in normal operation the Diretta target hangs off a dedicated point-to-point NIC (`enp4s0`) and is **not** on your LAN, so you can't reach it from a browser/app to check or apply a **target firmware update** without physically recabling it onto a switch. The bridge mode puts both NICs on the same L2 segment so the target picks up a LAN DHCP address and becomes reachable — no recabling. You then switch back for listening.
+
+> systemd-networkd only (the wizard's module 03 → **S**). A NetworkManager variant may come later.
+
+## The two modes
+
+```
+independent  (normal, audiophile)
+  router/LAN ──┤ enp5s0 (DHCP)                 host
+               │ enp4s0 (link-local, L2) ── Diretta target (NOT on LAN)
+
+bridge  (transient, firmware check — MTU forced to 1500)
+  router/LAN ──┤ enp5s0 ┐
+               │         ├─ diretta-br0 (DHCP)  host
+               │ enp4s0 ┘            └──────── Diretta target (now ON the LAN,
+                                                gets a LAN DHCP address)
+```
+
+## Prerequisites
+
+- The host uses **systemd-networkd** (not NetworkManager).
+- Run as **root**.
+- An **SSH session over the LAN drops briefly** during a switch (the IP moves between the LAN NIC and the bridge while `systemd-networkd` restarts). The bridge pins the LAN NIC's MAC, so the DHCP lease — and thus the **IP — stays the same**; just reconnect to the same address after a few seconds. A local console is still nice to have, but no longer strictly required.
+
+## Usage
+
+```bash
+sudo ./scripts/diretta-net-toggle.sh status        # read-only: current mode + iface state
+sudo ./scripts/diretta-net-toggle.sh bridge        # → target reachable from the LAN
+sudo ./scripts/diretta-net-toggle.sh independent   # → back to normal listening mode
+```
+
+`bridge` and `independent` ask for confirmation and warn before restarting `systemd-networkd`. `status` changes nothing.
+
+### Interface detection
+
+No hard-coded NIC names — the script resolves the LAN and Diretta NICs in this priority order:
+
+1. **Env override** (expert): `DIRETTA_LAN_IFACE` / `DIRETTA_TARGET_IFACE`.
+   ```bash
+   sudo DIRETTA_LAN_IFACE=enpXsY DIRETTA_TARGET_IFACE=enxAABBCC ./scripts/diretta-net-toggle.sh status
+   ```
+2. **Saved mapping**: `/etc/diretta-net-toggle.conf` (written the first time roles are resolved).
+3. **Auto-detect**: on a 2-NIC host, LAN = the interface holding the default route; Diretta = the other physical ethernet.
+4. **Interactive**: if still ambiguous (0/1 or 3+ NICs, or no default route), it lists the physical ethernet NICs (with link state and IPv4) and asks you to pick.
+
+The resolved pair is **persisted** to the state file. This matters because in `bridge` mode the default route is on the bridge, not on a physical NIC — auto-detection alone couldn't map them back, but the saved file does. Names like `enx00e04c…` (USB RTL8156) are handled fine. To force a fresh detection, delete the state file:
+
+```bash
+sudo rm /etc/diretta-net-toggle.conf
+```
+
+## Firmware-check workflow
+
+1. `sudo ./scripts/diretta-net-toggle.sh bridge` — confirm the prompts.
+2. Reconnect if your SSH dropped. Find the target's new LAN address: your router's DHCP leases page, or `ip neigh show dev diretta-br0`, or a quick `nmap -sn` of your LAN subnet.
+3. Open the target's web UI / run its updater from any LAN machine; check/apply the firmware update.
+4. `sudo ./scripts/diretta-net-toggle.sh independent` — back to the dedicated link.
+5. Reboot (recommended) so the Diretta NIC's jumbo udev `.link` re-applies and the renderer service starts clean.
+
+## What it writes
+
+All files carry a `# Managed by diretta-net-toggle` first line; switching modes deletes the tool's own files for the other mode and writes the new set under `/etc/systemd/network/` (`<LAN>` / `<DIR>` are the resolved NIC names):
+
+- **independent**: `10-<LAN>.network` (DHCP) + `10-<DIR>.network` (link-local, `ConfigureWithoutCarrier=yes`).
+- **bridge**: `15-diretta-br0.netdev` (`Kind=bridge`, **`MACAddress=` pinned to the LAN NIC**) + `10-<LAN>.network`/`10-<DIR>.network` (`Bridge=`, `MTUBytes=1500`) + `20-diretta-br0.network` (DHCP, `MTUBytes=1500`).
+
+Plus the interface mapping at `/etc/diretta-net-toggle.conf` (see *Interface detection* above).
+
+## Important notes
+
+- **Stable IP (bridge MAC pinning)**: a Linux bridge adopts the lowest MAC among its ports by default — often the Diretta NIC's — so the DHCP server would hand the bridge a *different* IP than the LAN NIC had, forcing you to reconnect to a new address (and again when un-bridging). This tool pins `diretta-br0`'s MAC to the LAN NIC's, so the DHCP lease and the **IP stay the same** across `independent ⇄ bridge`. If the LAN NIC's MAC can't be read it warns and falls back to default behaviour (IP may change).
+- **MTU**: bridge mode is pinned to **1500** for LAN compatibility (a jumbo frame on a 1500 LAN segment breaks things). The Diretta NIC's jumbo `.link` drop-in (set by `install-drup`/`install-slim2diretta`) is overridden only while bridged; `independent` lets it apply again — reboot to be sure.
+- **Conflict with the wizard's module 03**: `network-stack → S` writes `10-<iface>.network` tagged `# Generated by fedora-audiophile-setup`. This tool writes the same filenames with its own tag and **takes over** the config of these two NICs. If it finds an unmanaged file there it warns you. `independent` restores a working Diretta config equivalent to the wizard's.
+- **Transient by design**: don't listen in bridge mode (no jumbo, target exposed on the LAN, extra L2 path). It's for the firmware check, then switch back.
+
+## Troubleshooting
+
+- *Lost the network / SSH after switching*: wait ~10 s, reconnect to the same IP. From the console: `networkctl status`, `ip -br addr`. Re-run the desired sub-command.
+- *Target didn't get a LAN address in bridge mode*: it may be powered off, or its NIC came up after the bridge — power-cycle the target, then `networkctl reconfigure diretta-br0` (or just re-run `bridge`).
+- *Wrong NICs detected*: delete `/etc/diretta-net-toggle.conf` and re-run (it re-detects), or pin them explicitly with `DIRETTA_LAN_IFACE=… DIRETTA_TARGET_IFACE=… sudo …` (that also rewrites the state file).
+- *Want to undo completely*: `sudo ./scripts/diretta-net-toggle.sh independent` is the normal "off" state. To hand control back to the wizard, re-run `sudo ./setup.sh --only network-stack` after removing the tool's tagged files (and `/etc/diretta-net-toggle.conf`).
