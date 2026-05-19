@@ -78,6 +78,7 @@ sudo ./setup.sh --only kernel-rt
 - **[Newbie walkthrough](docs/en/newbie-walkthrough.md)** — start here if you've never installed Linux. Goes from empty mini-PC to first listening test, no prior knowledge assumed. (**Français :** [guide pas à pas pour débutant](docs/fr/newbie-walkthrough.md))
 - [Fedora 43 minimal install (custom)](docs/en/fedora-43-minimal-install.md) — terser install reference.
 - [Post-install tuning reference](docs/en/post-install-tuning.md) — what each module does, and why.
+- [Diretta NIC toggle](docs/en/diretta-net-toggle.md) — companion tool (`scripts/diretta-net-toggle.sh`) to temporarily bridge the LAN and Diretta NICs so the target is reachable from the LAN (e.g. to check/update its firmware) without recabling, then switch back for listening. systemd-networkd only. (**Français :** [bascule NIC Diretta](docs/fr/diretta-net-toggle.md))
 
 ## Roadmap
 
