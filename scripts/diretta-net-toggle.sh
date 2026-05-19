@@ -263,12 +263,28 @@ EOF
 }
 
 _write_bridge() {
-    cat > "${NETDIR}/15-${BRIDGE}.netdev" <<EOF
-${TAG}
-[NetDev]
-Name=${BRIDGE}
-Kind=bridge
-EOF
+    # Pin the bridge's MAC to the LAN NIC's. A Linux bridge otherwise
+    # adopts the lowest MAC among its ports; if that's the Diretta NIC,
+    # the DHCP request goes out with a different MAC, the router hands out
+    # a DIFFERENT IP, and you have to reconnect to a new address (and
+    # again when un-bridging). Keeping the LAN NIC's identity → same DHCP
+    # lease → same IP across independent ⇄ bridge.
+    local lan_mac
+    lan_mac=$(cat "/sys/class/net/${LAN_IFACE}/address" 2>/dev/null || true)
+    {
+        echo "${TAG}"
+        echo "[NetDev]"
+        echo "Name=${BRIDGE}"
+        echo "Kind=bridge"
+        if [[ -n "$lan_mac" ]]; then
+            echo "MACAddress=${lan_mac}"
+        fi
+    } > "${NETDIR}/15-${BRIDGE}.netdev"
+    if [[ -n "$lan_mac" ]]; then
+        _info "bridge MAC pinned to ${LAN_IFACE} (${lan_mac}) — same DHCP lease/IP kept."
+    else
+        _warn "could not read ${LAN_IFACE} MAC; bridge MAC not pinned — the LAN IP may change while bridged."
+    fi
     cat > "${NETDIR}/10-${LAN_IFACE}.network" <<EOF
 ${TAG}
 [Match]
