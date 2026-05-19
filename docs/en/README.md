@@ -8,6 +8,7 @@ Project documentation, English-first.
 - [Fedora 43 minimal install (custom)](fedora-43-minimal-install.md) — terser reference for the install phase, oriented at users who already know their way around a Linux installer.
 - [Post-install tuning reference](post-install-tuning.md) — what the wizard does, module by module, and why each tweak matters.
 - [Design notes](design-notes.md) — architectural decisions and conventions. Read this before adding a new module.
+- [Diretta NIC toggle (bridge ⇄ independent)](diretta-net-toggle.md) — companion tool to temporarily bridge the two NICs so the Diretta target is reachable from the LAN (e.g. to check its firmware) without recabling, then switch back. systemd-networkd only.
 
 ## Building a PDF
 
