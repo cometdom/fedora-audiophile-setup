@@ -308,6 +308,7 @@ Pour chaque question, la **valeur par défaut** (entre crochets, du type `[Y/n]`
 | 04 tmpfs-disk | `Mount /var/log and /var/tmp as tmpfs?` | **Y** (Entrée) — zéro écriture disque pendant la lecture. |
 | 05 services-cleanup | `Disable firewalld?` | **Y** (Entrée) — hôte audio dédié sur un LAN de confiance. |
 | 05 services-cleanup | `Disable SELinux?` | **Y** (Entrée) — aucun surcoût. |
+| 06 cpu-states | `Cap the CPU max frequency? (opt-in)` | **N** (Entrée) pour la première installation. Si vous voulez tester le réglage audiophile (fréquence max abaissée → moins de bruit électrique perçu sur la sortie analogique du DAC, subjectif), répondez **Y** et un pourcentage (50 est un bon point de départ ; essayez 75/100 ensuite). Vous pouvez ré-ajuster sans relancer le wizard : éditez `/etc/default/audiophile-cpu-states` puis `sudo systemctl restart audiophile-cpu-states.service`. |
 | 10 install-drup | `Install DirettaRendererUPnP?` | **Y** si vous voulez UPnP / Audirvana / Roon / mConnect. Sinon **n**. |
 | 10 install-drup | Choix de la carte réseau | Choisissez la carte reliée à votre cible Diretta. L'autre (celle qui a une IP) est votre côté LAN. |
 | 10 install-drup | `Build DRUP with Clang + LTO?` | **Y** (Entrée) — meilleure qualité audio, compilation un peu plus longue. |

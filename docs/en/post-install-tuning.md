@@ -89,9 +89,12 @@ Installs a systemd oneshot service plus its `/usr/local/sbin` script that, on ev
 
 - sets `scaling_governor=performance` on every CPU
 - disables turbo/boost (Intel pstate `no_turbo`, fallback `cpufreq/boost` for AMD/acpi-cpufreq)
+- *(optional)* caps the max CPU frequency to `CPU_MAX_PCT` % of the hardware max — configured via `/etc/default/audiophile-cpu-states`. Intel pstate uses `max_perf_pct`; everything else falls back to writing `scaling_max_freq` per CPU. Empty/unset = no cap.
 - disables c-states deeper than C0/C1 (cpuidle `state2+`)
 
 Best-effort writes (missing sysfs nodes skipped). Coexists with the DRUP tuner's governor service — both write the same values.
+
+**Tuning the max-freq cap without re-running the wizard.** Edit `/etc/default/audiophile-cpu-states` (`CPU_MAX_PCT=50`, `=75`, empty…), then `sudo systemctl restart audiophile-cpu-states.service`. Audiophile lore: lower peak frequency draws less current → less perceived electrical noise on the DAC analog rail (subjective; Diretta itself needs very little CPU, so there is ample headroom to try lower values).
 
 ### 07 — sysctl-network
 
