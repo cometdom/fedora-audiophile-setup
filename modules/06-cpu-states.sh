@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-# 06-cpu-states — pin CPU to performance state, disable turbo/boost,
-# disable deep idle states, and optionally cap the max CPU frequency.
+# 06-cpu-states — pin CPU to performance, disable turbo/boost, disable
+# deep idle states, optionally cap the max CPU frequency, and apply
+# audio-friendly memory/MM tunings.
 #
 # Installs a single systemd oneshot service that on every boot writes to
-# /sys/devices/system/cpu/... to:
+# /sys/... to:
 #   1. Set scaling_governor=performance on every CPU
 #   2. Disable turbo/boost (Intel pstate no_turbo, or generic cpufreq boost)
 #   3. (optional) Cap the max CPU frequency to N% of the hardware max,
@@ -12,6 +13,10 @@
 #      Audiophile lore: lower peak current draw = less electrical noise on
 #      the DAC analog rail (subjective; try 50/75/100 and decide).
 #   4. Disable c-states deeper than C0/C1 on every CPU
+#   5. Memory/MM jitter reducers — disable Transparent Huge Pages (no
+#      periodic khugepaged scan), Kernel Samepage Merging (no periodic
+#      page-merge scan), and NUMA balancing (no async page migration).
+#      Best-effort: missing sysfs nodes skipped silently.
 #
 # The CPU_MAX_PCT value can be re-tuned WITHOUT re-running the wizard:
 # just edit /etc/default/audiophile-cpu-states and
@@ -30,7 +35,7 @@ readonly _CPU_SERVICE_PATH="/etc/systemd/system/${_CPU_SERVICE}"
 readonly _CPU_SCRIPT="/usr/local/sbin/audiophile-cpu-states.sh"
 readonly _CPU_CONF="/etc/default/audiophile-cpu-states"
 
-log_step "CPU performance pinning (governor / no_turbo / max-freq cap / c-states)"
+log_step "CPU performance pinning (governor / no_turbo / max-freq cap / c-states / memory tunings)"
 
 # Read current CPU_MAX_PCT from the conf file (if any), then prompt to
 # set/keep/disable a cap and rewrite the file.
@@ -141,6 +146,17 @@ for d in /sys/devices/system/cpu/cpu*/cpuidle; do
     done
 done
 
+# 5. Memory / MM tunings — remove sources of background MM jitter.
+#    a) Transparent Huge Pages: no periodic khugepaged scan/defrag.
+for f in /sys/kernel/mm/transparent_hugepage/enabled \
+         /sys/kernel/mm/transparent_hugepage/defrag; do
+    [[ -w "$f" ]] && echo never > "$f" 2>/dev/null || true
+done
+#    b) Kernel Samepage Merging: no periodic page-merge scan.
+[[ -w /sys/kernel/mm/ksm/run ]] && echo 0 > /sys/kernel/mm/ksm/run 2>/dev/null || true
+#    c) NUMA balancing: no async kernel page migration between nodes.
+[[ -w /proc/sys/kernel/numa_balancing ]] && echo 0 > /proc/sys/kernel/numa_balancing 2>/dev/null || true
+
 exit 0
 SCRIPT_EOF
     chmod +x "$_CPU_SCRIPT"
@@ -155,7 +171,7 @@ _cpu_write_service() {
     cat > "$_CPU_SERVICE_PATH" <<EOF
 ${_CPU_GEN_TAG}
 [Unit]
-Description=Audiophile CPU performance pinning (governor, no_turbo, max-freq cap, c-states)
+Description=Audiophile CPU performance pinning (governor, no_turbo, max-freq cap, c-states, memory tunings)
 After=multi-user.target
 
 [Service]

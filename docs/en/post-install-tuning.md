@@ -91,6 +91,7 @@ Installs a systemd oneshot service plus its `/usr/local/sbin` script that, on ev
 - disables turbo/boost (Intel pstate `no_turbo`, fallback `cpufreq/boost` for AMD/acpi-cpufreq)
 - *(optional)* caps the max CPU frequency to `CPU_MAX_PCT` % of the hardware max — configured via `/etc/default/audiophile-cpu-states`. Intel pstate uses `max_perf_pct`; everything else falls back to writing `scaling_max_freq` per CPU. Empty/unset = no cap.
 - disables c-states deeper than C0/C1 (cpuidle `state2+`)
+- applies audio-friendly memory/MM tunings — removes the usual sources of background MM jitter: **Transparent Huge Pages** off (`enabled` and `defrag` → `never`, so `khugepaged` doesn't periodically scan/defrag), **Kernel Samepage Merging** off (`/sys/kernel/mm/ksm/run = 0`, no periodic page-merge scan), and **NUMA balancing** off (`/proc/sys/kernel/numa_balancing = 0`, no async page migration between NUMA nodes — a no-op on single-socket mini-PCs but consistent).
 
 Best-effort writes (missing sysfs nodes skipped). Coexists with the DRUP tuner's governor service — both write the same values.
 
