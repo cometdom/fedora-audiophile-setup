@@ -230,6 +230,13 @@ module_description() {
 # show_menu_and_dispatch — interactive numbered menu. Option 1 runs all
 # modules in order (default on Enter); options 2..N run one module
 # standalone; the last option exits cleanly.
+#
+# Each module row shows the file-prefix module number (NN) before the
+# short name, e.g. "2) 00 preflight". The leading number on the line
+# (1, 2, …) is the menu choice; the NN matches the modules/NN-name.sh
+# file and the references used throughout the documentation. The two are
+# intentionally distinct because the menu has extra entries (Full
+# install, Exit) that don't map to a module.
 show_menu_and_dispatch() {
     local -a names=()
     while IFS= read -r m; do names+=("$m"); done < <(list_modules)
@@ -238,22 +245,24 @@ show_menu_and_dispatch() {
         return 0
     fi
 
-    # Width of the longest module name, for visual alignment.
+    # Width of the longest "NN name" label, for visual alignment. Each
+    # module row prints "NN name" (3-char prefix), so reserve length+3.
     local maxw=12  # at least as wide as "Full install"
     local n
     for n in "${names[@]}"; do
-        (( ${#n} > maxw )) && maxw=${#n}
+        (( ${#n} + 3 > maxw )) && maxw=$(( ${#n} + 3 ))
     done
 
     echo
     echo "What do you want to do?"
     echo
     printf "  %2d) %-*s   %s\n" 1 "$maxw" "Full install" "all modules in order (recommended)"
-    local i=2 path desc
+    local i=2 path desc num
     for n in "${names[@]}"; do
         path=$(resolve_module_path "$n")
+        num=$(basename "$path" | sed -E 's/^([0-9]+)-.*/\1/')
         desc=$(module_description "$path")
-        printf "  %2d) %-*s — %s\n" "$i" "$maxw" "$n" "${desc:-(no description)}"
+        printf "  %2d) %-*s — %s\n" "$i" "$maxw" "$num $n" "${desc:-(no description)}"
         i=$((i+1))
     done
     local exit_idx=$i

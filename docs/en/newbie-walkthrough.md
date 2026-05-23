@@ -284,17 +284,19 @@ The first time you run it, a numbered menu appears.
 ```
 What do you want to do?
 
-   1) Full install         all modules in order (recommended)
-   2) preflight            — verify hard pre-conditions...
-   3) kernel-rt            — install the PREEMPT_RT kernel...
+   1) Full install              all modules in order (recommended)
+   2) 00 preflight            — verify hard pre-conditions...
+   3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  14) finalize             — sanity-check + offer reboot
+  14) 99 finalize             — sanity-check + offer reboot
   15) Exit
 
 Choose [1]:
 ```
 
 Just press **Enter** (or type `1`). The wizard runs every module in order. You'll be asked questions along the way — the next section explains each one.
+
+> **Reading the menu.** Each module row shows two numbers: the leading **`2)`, `3)`, …** is the menu choice (what you type), and the two digits right after — **`00`, `01`, …, `99`** — are the module number, matching `modules/NN-name.sh` and the references used in §13 below and elsewhere in the docs. The two differ because the menu has extra entries (Full install, Exit) that aren't modules. When the walkthrough says "module 06", look for `06` on the row, not for choice `6`.
 
 > If you ever need to re-run a single module (e.g. you skipped DRUP the first time), you can either pick its number from this menu, or use the shortcut: `sudo ./setup.sh --only kernel-rt`.
 

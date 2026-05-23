@@ -285,17 +285,19 @@ Au premier lancement, un menu numéroté apparaît.
 ```
 What do you want to do?
 
-   1) Full install         all modules in order (recommended)
-   2) preflight            — verify hard pre-conditions...
-   3) kernel-rt            — install the PREEMPT_RT kernel...
+   1) Full install              all modules in order (recommended)
+   2) 00 preflight            — verify hard pre-conditions...
+   3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  14) finalize             — sanity-check + offer reboot
+  14) 99 finalize             — sanity-check + offer reboot
   15) Exit
 
 Choose [1]:
 ```
 
 Appuyez simplement sur **Entrée** (ou tapez `1`). L'assistant exécute tous les modules dans l'ordre. Des questions vous seront posées en chemin — la section suivante explique chacune d'elles.
+
+> **Lire le menu.** Chaque ligne de module affiche deux numéros : le **`2)`, `3)`, …** en tête est le choix de menu (ce que vous tapez), et les deux chiffres juste après — **`00`, `01`, …, `99`** — sont le numéro du module, qui correspond à `modules/NN-name.sh` et aux références utilisées dans le §13 ci-dessous et ailleurs dans la doc. Les deux diffèrent parce que le menu contient des entrées supplémentaires (Full install, Exit) qui ne sont pas des modules. Quand le guide parle de « module 06 », cherchez le `06` sur la ligne, pas le choix `6`.
 
 > Si vous devez relancer un seul module (p. ex. vous avez sauté DRUP la première fois), vous pouvez soit choisir son numéro dans ce menu, soit utiliser le raccourci : `sudo ./setup.sh --only kernel-rt`.
 

@@ -49,17 +49,17 @@ The wizard opens with an **interactive numbered menu** :
 ```
 What do you want to do?
 
-   1) Full install         all modules in order (recommended)
-   2) preflight            — verify Fedora 43 / x86_64 / Secure Boot OFF / IPv6
-   3) kernel-rt            — install the PREEMPT_RT kernel...
+   1) Full install              all modules in order (recommended)
+   2) 00 preflight            — verify Fedora 43 / x86_64 / Secure Boot OFF / IPv6
+   3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  14) finalize             — sanity check + offer reboot
+  14) 99 finalize             — sanity check + offer reboot
   15) Exit
 
 Choose [1]:
 ```
 
-Press Enter (or `1`) for the full install. Any other number runs that single module standalone.
+Press Enter (or `1`) for the full install. Any other number runs that single module standalone. The two-digit prefix shown next to each name (`00`, `01`, …, `99`) is the module number — that's the same `NN` you'll see in the file names (`modules/NN-name.sh`) and in the documentation; the leading number (`2)`, `3)`, …) is the menu choice. They differ because the menu has extra entries (Full install, Exit) that aren't modules.
 
 Use `--dry-run` to preview every action without applying changes — works with both the menu and `--only`:
 
