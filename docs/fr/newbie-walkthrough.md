@@ -71,13 +71,15 @@ Ces choix sont importants, et certains ne peuvent plus être changés une fois l
 - **Secure Boot : DÉSACTIVÉ** — obligatoire. Le noyau temps réel installé par cet assistant ne peut pas être signé, donc Secure Boot l'empêcherait de démarrer.
 - **C-states CPU : DÉSACTIVÉS** (ou « C0/C1 uniquement ») — empêche le CPU d'entrer en sommeil profond, source de latence.
 - **CPU SpeedStep / Cool'n'Quiet / P-states : DÉSACTIVÉS** — maintient le CPU à fréquence maximale.
-- **Turbo Boost : à votre convenance** — le laisser activé convient ; le système figera no_turbo au démarrage.
+- **CPU Boost (Intel Turbo Boost / AMD Core Performance Boost, le libellé varie selon votre BIOS) : DÉSACTIVÉ** — recommandé. Le module 06 le force aussi côté OS, mais le désactiver dans le BIOS est plus déterministe : le CPU ne booste jamais, même brièvement entre l'allumage et le démarrage du service systemd.
 - **Hyper-Threading / SMT : ACTIVÉ** — laissez-le activé ; l'assistant peut le désactiver à l'exécution si vous le souhaitez.
 - **Virtualisation (VT-x / AMD-V) : DÉSACTIVÉE** — inutile pour la lecture.
 - **Puce audio de la carte mère : DÉSACTIVÉE** si vous ne l'utilisez jamais (l'audio sort par le réseau, pas par un DAC local).
 - **Wake-on-LAN, IPMI, gestion serveur : DÉSACTIVÉS** sauf si vous en avez besoin.
 
 Enregistrez, quittez et laissez la machine redémarrer.
+
+> **Pour aller plus loin (optionnel, après une première écoute).** Le module 06 permet de plafonner la fréquence max du CPU côté OS (`/etc/default/audiophile-cpu-states`, `CPU_MAX_PCT=…`) — pratique pour itérer, redémarrer le service, écouter. Une fois une valeur qui vous plaît trouvée, vous pouvez la **consolider dans le BIOS** via le multiplicateur / ratio CPU, ou via les limites de puissance (`PL1`/`PL2` chez Intel, `PPT`/`EDC`/`TDC` chez AMD). Une limite au niveau BIOS est strictement plus déterministe (le CPU ne peut physiquement pas dépasser, même brièvement au boot) et supprime la dépendance au service runtime. La limite OS reste utile comme terrain de jeu sûr pour continuer à expérimenter. L'undervolt (offset `Vcore`) est l'étape suivante, mais c'est très matériel-spécifique et présente un risque d'instabilité — à n'entreprendre que si vous êtes à l'aise avec.
 
 ## 3. Télécharger l'ISO Fedora
 
@@ -308,6 +310,7 @@ Pour chaque question, la **valeur par défaut** (entre crochets, du type `[Y/n]`
 | 04 tmpfs-disk | `Mount /var/log and /var/tmp as tmpfs?` | **Y** (Entrée) — zéro écriture disque pendant la lecture. |
 | 05 services-cleanup | `Disable firewalld?` | **Y** (Entrée) — hôte audio dédié sur un LAN de confiance. |
 | 05 services-cleanup | `Disable SELinux?` | **Y** (Entrée) — aucun surcoût. |
+| 06 cpu-states | `Cap the CPU max frequency? (opt-in)` | **N** (Entrée) pour la première installation. Si vous voulez tester le réglage audiophile (fréquence max abaissée → moins de bruit électrique perçu sur la sortie analogique du DAC, subjectif), répondez **Y** et un pourcentage (50 est un bon point de départ ; essayez 75/100 ensuite). Vous pouvez ré-ajuster sans relancer le wizard : éditez `/etc/default/audiophile-cpu-states` puis `sudo systemctl restart audiophile-cpu-states.service`. |
 | 10 install-drup | `Install DirettaRendererUPnP?` | **Y** si vous voulez UPnP / Audirvana / Roon / mConnect. Sinon **n**. |
 | 10 install-drup | Choix de la carte réseau | Choisissez la carte reliée à votre cible Diretta. L'autre (celle qui a une IP) est votre côté LAN. |
 | 10 install-drup | `Build DRUP with Clang + LTO?` | **Y** (Entrée) — meilleure qualité audio, compilation un peu plus longue. |
