@@ -70,7 +70,7 @@ These choices matter, and some of them can't be changed once the OS is installed
 - **Secure Boot: OFF** — required. The real-time kernel this wizard installs cannot be signed, so Secure Boot would prevent it from booting.
 - **CPU C-states: OFF** (or "C0/C1 only") — prevents the CPU from entering deep sleep that adds latency.
 - **CPU SpeedStep / Cool'n'Quiet / P-states: OFF** — keep the CPU at max frequency.
-- **Turbo Boost: your call** — leaving it ON is fine; the OS will pin no_turbo at boot.
+- **CPU Boost (Intel Turbo Boost / AMD Core Performance Boost, named per your BIOS): OFF** — recommended. Module 06 also pins it off at the OS level, but disabling it in the BIOS is more deterministic: the CPU never boosts, not even briefly between power-on and the systemd service starting.
 - **Hyper-Threading / SMT: ON** — leave it on; the wizard can disable it at runtime if you want.
 - **Virtualization (VT-x / AMD-V): OFF** — not needed for playback.
 - **Motherboard audio chip: DISABLED** if you never use it (audio leaves over the network, not via local DAC).

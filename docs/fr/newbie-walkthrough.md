@@ -71,7 +71,7 @@ Ces choix sont importants, et certains ne peuvent plus être changés une fois l
 - **Secure Boot : DÉSACTIVÉ** — obligatoire. Le noyau temps réel installé par cet assistant ne peut pas être signé, donc Secure Boot l'empêcherait de démarrer.
 - **C-states CPU : DÉSACTIVÉS** (ou « C0/C1 uniquement ») — empêche le CPU d'entrer en sommeil profond, source de latence.
 - **CPU SpeedStep / Cool'n'Quiet / P-states : DÉSACTIVÉS** — maintient le CPU à fréquence maximale.
-- **Turbo Boost : à votre convenance** — le laisser activé convient ; le système figera no_turbo au démarrage.
+- **CPU Boost (Intel Turbo Boost / AMD Core Performance Boost, le libellé varie selon votre BIOS) : DÉSACTIVÉ** — recommandé. Le module 06 le force aussi côté OS, mais le désactiver dans le BIOS est plus déterministe : le CPU ne booste jamais, même brièvement entre l'allumage et le démarrage du service systemd.
 - **Hyper-Threading / SMT : ACTIVÉ** — laissez-le activé ; l'assistant peut le désactiver à l'exécution si vous le souhaitez.
 - **Virtualisation (VT-x / AMD-V) : DÉSACTIVÉE** — inutile pour la lecture.
 - **Puce audio de la carte mère : DÉSACTIVÉE** si vous ne l'utilisez jamais (l'audio sort par le réseau, pas par un DAC local).
