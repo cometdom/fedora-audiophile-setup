@@ -78,6 +78,8 @@ These choices matter, and some of them can't be changed once the OS is installed
 
 Save, exit, and let the machine reboot.
 
+> **Going further (optional, after first listening).** Module 06 lets you cap the CPU max frequency from the OS (`/etc/default/audiophile-cpu-states`, `CPU_MAX_PCT=…`) — easy to iterate, restart-and-listen. Once you've found a value you like, you can **consolidate it in the BIOS** via the CPU multiplier / ratio, or via the power limits (`PL1`/`PL2` on Intel, `PPT`/`EDC`/`TDC` on AMD). A BIOS-level limit is strictly more deterministic (the CPU physically can't exceed it, even briefly at boot) and removes the dependency on the runtime service. The OS-level cap stays as a safe playground for further experimentation. Undervolt (`Vcore` offset) is the next step but it's hardware-specific and carries instability risk — proceed only if you're comfortable with it.
+
 ## 3. Download the Fedora ISO
 
 On your **main computer** (not the audio PC):

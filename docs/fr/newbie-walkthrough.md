@@ -79,6 +79,8 @@ Ces choix sont importants, et certains ne peuvent plus être changés une fois l
 
 Enregistrez, quittez et laissez la machine redémarrer.
 
+> **Pour aller plus loin (optionnel, après une première écoute).** Le module 06 permet de plafonner la fréquence max du CPU côté OS (`/etc/default/audiophile-cpu-states`, `CPU_MAX_PCT=…`) — pratique pour itérer, redémarrer le service, écouter. Une fois une valeur qui vous plaît trouvée, vous pouvez la **consolider dans le BIOS** via le multiplicateur / ratio CPU, ou via les limites de puissance (`PL1`/`PL2` chez Intel, `PPT`/`EDC`/`TDC` chez AMD). Une limite au niveau BIOS est strictement plus déterministe (le CPU ne peut physiquement pas dépasser, même brièvement au boot) et supprime la dépendance au service runtime. La limite OS reste utile comme terrain de jeu sûr pour continuer à expérimenter. L'undervolt (offset `Vcore`) est l'étape suivante, mais c'est très matériel-spécifique et présente un risque d'instabilité — à n'entreprendre que si vous êtes à l'aise avec.
+
 ## 3. Télécharger l'ISO Fedora
 
 Sur votre **ordinateur principal** (pas le PC audio) :
