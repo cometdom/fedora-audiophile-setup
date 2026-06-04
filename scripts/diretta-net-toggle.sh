@@ -101,12 +101,23 @@ EOF
 }
 
 # Parse the state file WITHOUT sourcing it (no arbitrary code execution).
+# Validates that the cached interfaces still exist in /sys/class/net before
+# accepting them — otherwise re-detection is forced. Necessary because the
+# kernel-assigned NIC names (enpXsY) can shift across PCI re-enumerations
+# (NIC swap, GPU insert/remove, added PCIe card) or be renamed entirely by
+# a .link rule (eth-lan / eth-diretta). Trusting a stale cache after that
+# produces phantom file writes (10-enp5s0.network etc.) and a bridge with
+# no slaves, which is what tripped the user on 2026-06-01.
 _load_state() {
     [[ -r "$STATE_FILE" ]] || return 1
     local l d
     l=$(grep -E '^LAN_IFACE=' "$STATE_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)
     d=$(grep -E '^DIRETTA_IFACE=' "$STATE_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)
     [[ -n "$l" && -n "$d" ]] || return 1
+    if [[ ! -e "/sys/class/net/${l}" || ! -e "/sys/class/net/${d}" ]]; then
+        _warn "cached interfaces (LAN=${l}, Diretta=${d}) no longer exist — discarding ${STATE_FILE} and re-detecting. This is normal after a NIC swap, added PCIe card, GPU change, or stable-naming rename."
+        return 1
+    fi
     LAN_IFACE="$l"; DIRETTA_IFACE="$d"
     return 0
 }
