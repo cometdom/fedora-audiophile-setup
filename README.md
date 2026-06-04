@@ -82,10 +82,20 @@ sudo ./setup.sh --only kernel-rt
 
 ## Roadmap
 
+### Released
+
 - [x] **v1.0** — Working wizard with all modules, interactive menu, Fedora 43/44 support, EN docs + French newbie walkthrough, PDF generation
-- [ ] v1.1 — Spanish translation; finish translating the remaining guides to French
-- [ ] v1.2 — Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
-- [ ] v1.3 — Optional config-file mode for unattended provisioning
+- [x] **v1.1** — Kernel selection hardening: vanilla `@kernel-vanilla/stable` PREEMPT_RT kernel only (CachyOS-RT dropped after no-boot reports), RPM `vmlinuz` content verification and `CONFIG_PREEMPT_RT` check before switching the default GRUB entry
+- [x] **v1.2** — Universal Diretta MTU persistence via a systemd-udevd `.link` drop-in — works under **both** NetworkManager and systemd-networkd
+- [x] **v1.3** — `diretta-net-toggle` companion tool: temporarily bridge LAN + Diretta NICs so the target is reachable from the LAN (firmware checks, etc.) without recabling, then switch back for listening
+- [x] **v1.4** — Module 06 gains an opt-in CPU max-frequency cap (`/etc/default/audiophile-cpu-states`, re-tunable without re-running the wizard) and always-on memory/MM jitter reducers (THP, KSM, NUMA balancing); walkthrough recommends BIOS-side CPU Boost off + OS→BIOS consolidation path for the max-freq cap
+- [x] **v1.5** — Stable interface naming by MAC (opt-in, default Y): NICs renamed to `eth-lan` / `eth-diretta` via udev `.link` drop-ins, surviving NIC swap, added PCIe card, and GPU insert/remove. Single canonical Diretta `.link` carrying rename + MTU + offload-off (gso/tso/gro/lro). `diretta-net-toggle` hardened with cache validation, actionable error messages when networkd is inactive, and a new `purge` subcommand for recovery from NetworkManager. Menu shows the module-file prefix (`NN`) next to each name
+
+### Planned
+
+- [ ] **v1.6+** — Spanish translation; finish translating the remaining guides to French
+- [ ] Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
+- [ ] Optional config-file mode for unattended provisioning
 - [ ] _separate sibling repo_ — Raspberry Pi / DietPi (ARM) audiophile setup
 
 ## License
