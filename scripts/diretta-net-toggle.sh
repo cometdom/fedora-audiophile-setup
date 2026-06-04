@@ -59,8 +59,32 @@ _require_root() {
 
 _require_networkd() {
     if ! systemctl is-active --quiet systemd-networkd; then
-        _err "systemd-networkd is not active. This tool only supports systemd-networkd."
+        _err "systemd-networkd is not active — this tool only supports systemd-networkd."
+        if systemctl is-active --quiet NetworkManager; then
+            _err "You are currently on NetworkManager. Two options:"
+            _err "  1. Switch the network stack: 'sudo ./setup.sh --only network-stack' (choose S),"
+            _err "     reboot, then re-run this tool."
+            _err "  2. If you only want to undo a previous run of this tool (clean up its files"
+            _err "     and let NM re-attach to the freed interfaces), run: 'sudo $0 purge'"
+            _err "     — that works regardless of which network stack is active."
+        else
+            _err "Activate systemd-networkd first, or use 'sudo $0 purge' to clean up files left"
+            _err "by a previous run of this tool."
+        fi
         exit 1
+    fi
+    # Both stacks active is a fragile state: NM and networkd fight for control
+    # of the same interfaces, and any bridge/independent switch tends to be
+    # undone by NM after a few seconds. Surface this loudly — silent failure
+    # is what tripped the user on 2026-06-02.
+    if systemctl is-active --quiet NetworkManager; then
+        _warn "BOTH NetworkManager AND systemd-networkd are active. This is a fragile state:"
+        _warn "the two managers will fight for control of the same interfaces, and a 'bridge'"
+        _warn "or 'independent' switch is likely to be partially undone by NM after a few"
+        _warn "seconds (you may see the connection drop unexpectedly). Strongly recommended:"
+        _warn "  sudo systemctl disable --now NetworkManager"
+        _warn "or switch cleanly via 'sudo ./setup.sh --only network-stack' (choose S)."
+        _confirm "Continue anyway?" || { _info "aborted."; exit 0; }
     fi
 }
 
@@ -372,6 +396,46 @@ cmd_status() {
     fi
 }
 
+cmd_purge() {
+    _require_root
+    _info "purging files managed by this tool — works regardless of which network stack is active."
+
+    local f removed=0
+    while IFS= read -r f; do
+        if _is_managed "$f"; then
+            _info "removing $f"
+            rm -f "$f"
+            removed=$((removed+1))
+        fi
+    done < <(find "$NETDIR" -maxdepth 1 \( -name '*.network' -o -name '*.netdev' \) -type f 2>/dev/null)
+
+    if [[ -f "$STATE_FILE" ]]; then
+        _info "removing $STATE_FILE"
+        rm -f "$STATE_FILE"
+    fi
+
+    # The .netdev removal alone does NOT delete the bridge device from a
+    # running kernel — it just deletes the on-disk definition. The bridge
+    # stays as long as networkd hasn't been told to garbage-collect it. The
+    # cleanest way out is to delete it explicitly via ip link.
+    if [[ -e "/sys/class/net/${BRIDGE}" ]]; then
+        _info "removing bridge ${BRIDGE} from kernel"
+        ip link del "$BRIDGE" 2>/dev/null || true
+    fi
+
+    # Nudge whichever manager is active to re-scan the freed interfaces.
+    if systemctl is-active --quiet systemd-networkd; then
+        _info "reloading systemd-networkd"
+        networkctl reload 2>/dev/null || true
+    fi
+    if systemctl is-active --quiet NetworkManager; then
+        _info "restarting NetworkManager (so it re-attaches to the freed interfaces)"
+        systemctl restart NetworkManager || true
+    fi
+
+    _info "done. ${removed} managed file(s) removed."
+}
+
 cmd_switch() {
     local target="$1"
     _require_root
@@ -400,14 +464,21 @@ main() {
     case "${1:-}" in
         status)             cmd_status ;;
         bridge|independent) cmd_switch "$1" ;;
+        purge)              cmd_purge ;;
         *)
             cat >&2 <<EOF
-Usage: sudo $0 {status|bridge|independent}
+Usage: sudo $0 {status|bridge|independent|purge}
 
   status        show resolved NIC roles, current mode, iface state (read-only)
   bridge        enslave LAN+Diretta NICs into ${BRIDGE} (LAN DHCP, MTU
                 1500) — target reachable from the LAN, TRANSIENT
   independent   LAN NIC = LAN DHCP, Diretta NIC = link-local — normal mode
+  purge         remove every file this tool ever wrote, delete the bridge
+                device from the kernel, drop the cached NIC mapping, and
+                nudge the active network manager to re-attach. Useful for
+                recovery after a partial run, or before switching the
+                stack via the wizard. Does NOT require systemd-networkd
+                active — runs from NetworkManager too.
 
 NIC roles are auto-detected and saved to ${STATE_FILE}
 (delete it to re-detect). Expert override:
