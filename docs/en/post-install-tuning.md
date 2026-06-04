@@ -139,6 +139,26 @@ After the summary, the user is prompted `Reboot now? [y/N]` (default N — gives
 
 ---
 
+## Experimental tools (not in the menu)
+
+These live under `scripts/` and are run by hand. They are not part of the menu-driven install and the wizard does not call them. They exist for users who want to A/B test something specific without ramming it down everyone else's throat.
+
+### `scripts/slice-routing.sh` — systemd-slice CPU corral
+
+Writes two systemd drop-ins (`/etc/systemd/system/{system,user}.slice.d/audiophile.conf`) with `[Slice] AllowedCPUs=<non-audio-cores>`. Effect: every process under `system.slice` (sshd, NetworkManager, journald, …) and `user.slice` (interactive sessions) is scheduled exclusively on the non-audio cores. RT threads in DRUP / slim2Diretta are not in those slices — they are pinned via `SCHED_FIFO` + pthread affinity to the audio cores and bypass this restriction.
+
+This is **complementary** to the kernel-cmdline isolation (`isolcpus` / `nohz_full` / `rcu_nocbs`) already applied by the wizard via DRUP's tuner script — not a replacement. Slices give a runtime-modifiable (no GRUB rebuild, no reboot) second layer of corralling for system + user processes. Whether it changes anything audible on top of an already isolcpus'd host is the open question the script lets you A/B.
+
+```bash
+sudo ./scripts/slice-routing.sh apply 2-5      # reserve cores 2..5 for audio
+sudo ./scripts/slice-routing.sh status         # show live AllowedCPUs
+sudo ./scripts/slice-routing.sh revert         # remove drop-ins, daemon-reload
+```
+
+Drop-ins are tagged with a fixed header so `revert` leaves any hand-edited unmanaged drop-ins alone. Effect applies on the next `systemctl daemon-reload` — no reboot required.
+
+---
+
 ## Reverting
 
 The wizard does **not** provide a per-module rollback (a deliberate design choice — see [design-notes](design-notes.md)). It is safe to re-run instead: every module is idempotent and converges rather than stacking changes.
