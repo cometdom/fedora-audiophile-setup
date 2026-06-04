@@ -182,26 +182,48 @@ _drup_ensure_nm_connection() {
         return 0
     fi
 
-    # Count profiles named "diretta-<iface>" by UUID. Earlier wizard
-    # versions could create duplicates (DEVICE column was '--' for inactive
+    # If stable-naming is set up for this NIC, target the stable name. NM
+    # accepts ifname= for an interface that doesn't exist yet; the profile
+    # stays dormant until the post-reboot rename creates eth-diretta. The
+    # bound-check below still uses the CURRENT iface (whatever the kernel
+    # currently uses) to detect existing profiles attached to the device
+    # right now.
+    local target_iface
+    target_iface=$(stable_name_for "$iface")
+    local con_name="diretta-${target_iface}"
+
+    # Migration: if we're switching to a stable name, delete any legacy
+    # 'diretta-<old-pci-name>' profile from a previous install — it would
+    # otherwise dangle bound to a name that disappears at next-boot rename.
+    if [[ "$target_iface" != "$iface" ]]; then
+        local legacy_uuid
+        while IFS= read -r legacy_uuid; do
+            [[ -z "$legacy_uuid" ]] && continue
+            log_info "Removing legacy NM profile 'diretta-${iface}' (UUID ${legacy_uuid}) — replaced by '${con_name}' bound to the stable name."
+            run_cmd nmcli connection delete "$legacy_uuid"
+        done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null \
+            | awk -F: -v n="diretta-${iface}" '$2==n {print $1}')
+    fi
+
+    # Count profiles named "<con_name>" by UUID. Earlier wizard versions
+    # could create duplicates (DEVICE column was '--' for inactive
     # connections, missing the existence check). We now recover from any
     # leftover duplicates: delete them all and recreate a clean one.
-    # Single-quotes preserve the iface in awk.
     local -a our_uuids=()
     local uuid
     while IFS= read -r uuid; do
         [[ -n "$uuid" ]] && our_uuids+=("$uuid")
     done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null \
-        | awk -F: -v n="diretta-${iface}" '$2==n {print $1}')
+        | awk -F: -v n="$con_name" '$2==n {print $1}')
 
     if [[ ${#our_uuids[@]} -gt 1 ]]; then
-        log_warn "Found ${#our_uuids[@]} duplicate NM profiles named 'diretta-${iface}' — deleting all and recreating one clean."
+        log_warn "Found ${#our_uuids[@]} duplicate NM profiles named '${con_name}' — deleting all and recreating one clean."
         for uuid in "${our_uuids[@]}"; do
             run_cmd nmcli connection delete "$uuid"
         done
         # Fall through to the create step below.
     elif [[ ${#our_uuids[@]} -eq 1 ]]; then
-        log_info "NM profile 'diretta-${iface}' already present (UUID ${our_uuids[0]}) — skipping."
+        log_info "NM profile '${con_name}' already present (UUID ${our_uuids[0]}) — skipping."
         return 0
     fi
 
@@ -214,10 +236,10 @@ _drup_ensure_nm_connection() {
         return 0
     fi
 
-    log_info "Creating minimal NM profile for ${iface} (link-local v4+v6, autoconnect)."
+    log_info "Creating minimal NM profile '${con_name}' for ${target_iface} (link-local v4+v6, autoconnect)."
     run_cmd nmcli connection add type ethernet \
-        ifname "$iface" \
-        con-name "diretta-${iface}" \
+        ifname "$target_iface" \
+        con-name "$con_name" \
         ipv4.method link-local \
         ipv6.method link-local \
         connection.autoconnect yes
