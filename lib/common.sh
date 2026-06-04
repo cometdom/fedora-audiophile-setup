@@ -81,60 +81,275 @@ is_service_active() {
     systemctl is-active --quiet "$1" 2>/dev/null
 }
 
-# ensure_diretta_mtu_link <iface> — persist the Diretta NIC MTU via a
-# systemd-udevd .link drop-in. This is read by udevd at device coldplug,
-# BEFORE and INDEPENDENTLY of whichever network manager is active, so it is
-# the only MTU mechanism that works under BOTH NetworkManager and
-# systemd-networkd. (DRUP / slim2Diretta install.sh also prompt for MTU and
-# persist it via nmcli — NM-only, and a no-op/failure under networkd; that
-# duplicate prompt is harmless: the .link is what reliably applies.)
+# stable_name_for <iface> — print the stable rename target configured for
+# this NIC via a /etc/systemd/network/*.link drop-in that matches by MAC,
+# or print <iface> unchanged if no such .link exists.
 #
-# Idempotent: if our tagged .link already exists, offer to keep it.
-# DRY_RUN-aware. Shared by modules 10 and 11 so they cannot drift.
+# Works whether <iface> is the kernel-assigned name (enpXsY) or the
+# already-renamed name (eth-lan / eth-diretta), since /sys/class/net/<name>/
+# address always reflects the hardware MAC.
+#
+# Used by modules 10/11 (and downstream wrapper config writers) to make
+# /etc/default/diretta-renderer and /etc/default/slim2diretta reference
+# the stable names — so the config survives PCI re-enumeration even when
+# module 10/11 is run BEFORE the post-stable-naming reboot (i.e. when the
+# kernel still uses enpXsY but the .link files already promise eth-*).
+stable_name_for() {
+    local iface="$1"
+    local mac
+    mac=$(cat "/sys/class/net/${iface}/address" 2>/dev/null || true)
+    if [[ -z "$mac" ]]; then
+        echo "$iface"
+        return 0
+    fi
+    local f name=""
+    while IFS= read -r f; do
+        # Match the MAC line case-insensitively (systemd accepts either case).
+        if grep -qiE "^MACAddress=[[:space:]]*${mac}[[:space:]]*$" "$f" 2>/dev/null; then
+            name=$(grep -oP '^Name=\K\S+' "$f" 2>/dev/null | head -1)
+            if [[ -n "$name" ]]; then
+                echo "$name"
+                return 0
+            fi
+        fi
+    done < <(find /etc/systemd/network -maxdepth 1 -name '*.link' -type f 2>/dev/null)
+    echo "$iface"
+}
+
+# ensure_diretta_nm_connection <iface> — pre-create a minimal NetworkManager
+# profile for the Diretta NIC so DRUP and slim2Diretta install.sh scripts
+# (which try to persist their own MTU via nmcli) don't fail to attach.
+# Shared by modules 10 and 11 so they cannot drift.
+#
+# No-op if NetworkManager is not active (caller is on systemd-networkd or
+# both inactive). Logs a warning and returns if nmcli is missing.
+#
+# Stable-naming aware: if /etc/systemd/network/10-diretta.link maps the
+# passed iface's MAC to a stable name (eth-diretta), the NM profile is
+# created with ifname=<stable> instead of ifname=<current-pci-name>. NM
+# accepts a not-yet-existing ifname — the profile sits in 'available'
+# state until the next-boot rename activates it under the new name. No
+# SSH lockout risk: the LAN side is on a separate NIC. Any legacy
+# 'diretta-<old-pci-name>' profile from a previous wizard run is removed
+# so it doesn't dangle bound to a name that disappears at next boot.
+#
+# Idempotent: if a profile with the canonical 'diretta-<target>' name
+# already exists (single, non-duplicate), the function returns without
+# re-creating it. Multiple duplicates from older buggy wizard runs are
+# deleted and one clean profile is recreated. If some OTHER profile is
+# already bound to the iface (e.g. an auto-created NM connection), the
+# function skips creation to avoid stomping on user setup.
+ensure_diretta_nm_connection() {
+    local iface="$1"
+    is_service_active NetworkManager || return 0
+    if ! command -v nmcli >/dev/null 2>&1; then
+        log_warn "NM is active but nmcli is missing — cannot pre-create profile for ${iface}."
+        return 0
+    fi
+
+    # If stable-naming is set up for this NIC, target the stable name. NM
+    # accepts ifname= for an interface that doesn't exist yet; the profile
+    # stays dormant until the post-reboot rename creates eth-diretta. The
+    # bound-check below still uses the CURRENT iface (whatever the kernel
+    # currently uses) to detect existing profiles attached to the device
+    # right now.
+    local target_iface
+    target_iface=$(stable_name_for "$iface")
+    local con_name="diretta-${target_iface}"
+
+    # Migration: if we're switching to a stable name, delete any legacy
+    # 'diretta-<old-pci-name>' profile from a previous install — it would
+    # otherwise dangle bound to a name that disappears at next-boot rename.
+    if [[ "$target_iface" != "$iface" ]]; then
+        local legacy_uuid
+        while IFS= read -r legacy_uuid; do
+            [[ -z "$legacy_uuid" ]] && continue
+            log_info "Removing legacy NM profile 'diretta-${iface}' (UUID ${legacy_uuid}) — replaced by '${con_name}' bound to the stable name."
+            run_cmd nmcli connection delete "$legacy_uuid"
+        done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null \
+            | awk -F: -v n="diretta-${iface}" '$2==n {print $1}')
+    fi
+
+    # Count profiles named "<con_name>" by UUID. Earlier wizard versions
+    # could create duplicates (DEVICE column was '--' for inactive
+    # connections, missing the existence check). We now recover from any
+    # leftover duplicates: delete them all and recreate a clean one.
+    local -a our_uuids=()
+    local uuid
+    while IFS= read -r uuid; do
+        [[ -n "$uuid" ]] && our_uuids+=("$uuid")
+    done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null \
+        | awk -F: -v n="$con_name" '$2==n {print $1}')
+
+    if [[ ${#our_uuids[@]} -gt 1 ]]; then
+        log_warn "Found ${#our_uuids[@]} duplicate NM profiles named '${con_name}' — deleting all and recreating one clean."
+        for uuid in "${our_uuids[@]}"; do
+            run_cmd nmcli connection delete "$uuid"
+        done
+        # Fall through to the create step below.
+    elif [[ ${#our_uuids[@]} -eq 1 ]]; then
+        log_info "NM profile '${con_name}' already present (UUID ${our_uuids[0]}) — skipping."
+        return 0
+    fi
+
+    # No diretta-* profile, but some OTHER profile may still be bound to
+    # this iface (e.g. an auto-created one). Don't stomp on it.
+    local bound
+    bound=$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | cut -d: -f2)
+    if [[ -n "$bound" && "$bound" != "--" ]]; then
+        log_info "NM profile already bound to ${iface}: '${bound}' — skipping."
+        return 0
+    fi
+
+    log_info "Creating minimal NM profile '${con_name}' for ${target_iface} (link-local v4+v6, autoconnect)."
+    run_cmd nmcli connection add type ethernet \
+        ifname "$target_iface" \
+        con-name "$con_name" \
+        ipv4.method link-local \
+        ipv6.method link-local \
+        connection.autoconnect yes
+}
+
+# ensure_diretta_mtu_link <iface> — persist the Diretta NIC MTU, its
+# stable name (eth-diretta), AND its offload-off tuning via a SINGLE
+# systemd-udevd .link drop-in matched by MAC address. This is read by
+# udevd at device coldplug, BEFORE and INDEPENDENTLY of whichever
+# network manager is active, so it is the only place that works under
+# BOTH NetworkManager and systemd-networkd. (DRUP / slim2Diretta
+# install.sh also prompt for MTU and persist it via nmcli — NM-only,
+# and a no-op/failure under networkd; that duplicate prompt is
+# harmless: the .link is what reliably applies.)
+#
+# Offload disabling (gso/tso/gro/lro off): Diretta uses raw L2 frames
+# and consumer NICs sometimes mishandle them under hardware offloads.
+# Cost is minimal CPU added to the Diretta path, fully covered by the
+# isolated audio core(s). Always-on for the Diretta NIC; no user prompt.
+#
+# Why a single .link doing rename + MTU (and not two separate files):
+# systemd-udevd applies ONLY THE FIRST matching .link per device, in
+# lexical order. If module 03's stable-naming step already wrote
+# 10-diretta.link (rename by MAC → eth-diretta) and we wrote our MTU in a
+# separate 50-…link, the 50- file would never be evaluated and MTUBytes=
+# would be silently dropped. So we converge on ONE canonical file —
+# /etc/systemd/network/10-diretta.link — that carries both the rename and
+# the MTU. If a legacy 50-audiophile-diretta-*.link exists from a previous
+# install (pre-stable-naming), its MTUBytes= value is migrated and the
+# file is removed.
+#
+# Match by MAC + Type=ether: the MAC is stable across PCI re-enumeration
+# (NIC swap, GPU insertion, added PCIe card), and Type=ether excludes
+# virtual interfaces — important because the diretta-net-toggle bridge
+# mode clones the LAN MAC onto br0; without Type=ether, a MAC-only match
+# would be ambiguous between the physical NIC and the bridge.
+#
+# Idempotent: detects an existing MTU (canonical file or legacy file) and
+# offers to keep it. DRY_RUN-aware. Shared by modules 10 and 11 so they
+# cannot drift.
 ensure_diretta_mtu_link() {
     local iface="$1"
-    local link_file="/etc/systemd/network/50-audiophile-diretta-${iface}.link"
+    local canonical_file="/etc/systemd/network/10-diretta.link"
     local tag="# Generated by fedora-audiophile-setup"
-    local choice mtu="" cur
+    local mac choice mtu="" cur=""
 
-    if [[ -f "$link_file" ]]; then
-        cur=$(grep -oP '^MTUBytes=\K[0-9]+' "$link_file" 2>/dev/null || true)
-        if ! ask_yes_no "Diretta NIC ${iface} MTU already configured (${cur:-?}) in ${link_file}. Reconfigure?" N; then
-            log_info "Keeping the existing MTU drop-in for ${iface} (MTUBytes=${cur:-?})."
-            return 0
+    # Read the MAC of the passed iface. Works whether <iface> is still the
+    # kernel-assigned name (enpXsY) or already the renamed name (eth-diretta)
+    # — /sys/class/net/<name>/address always reflects the hardware MAC.
+    mac=$(cat "/sys/class/net/${iface}/address" 2>/dev/null || true)
+    if [[ -z "$mac" ]]; then
+        log_error "Cannot read MAC address for ${iface} (no /sys/class/net/${iface}/address) — skipping Diretta .link drop-in."
+        return 1
+    fi
+
+    # Migrate any legacy 50-audiophile-diretta-*.link (older pattern that
+    # silently never applied alongside a MAC-rename .link — see header).
+    local legacy
+    while IFS= read -r legacy; do
+        local legacy_mtu
+        legacy_mtu=$(grep -oP '^MTUBytes=\K[0-9]+' "$legacy" 2>/dev/null || true)
+        if [[ -n "$legacy_mtu" && -z "$cur" ]]; then
+            cur="$legacy_mtu"
+            log_info "Found legacy MTU drop-in ${legacy} with MTUBytes=${legacy_mtu} — will migrate to ${canonical_file}."
+        fi
+        log_info "Removing legacy ${legacy} (superseded by ${canonical_file})."
+        if [[ "${DRY_RUN:-0}" -eq 0 ]]; then
+            rm -f "$legacy"
+        fi
+    done < <(find /etc/systemd/network -maxdepth 1 -name '50-audiophile-diretta-*.link' -type f 2>/dev/null)
+
+    # If the canonical file already exists with a MTUBytes=, that value
+    # overrides any migrated legacy value.
+    if [[ -f "$canonical_file" ]]; then
+        local existing_mtu
+        existing_mtu=$(grep -oP '^MTUBytes=\K[0-9]+' "$canonical_file" 2>/dev/null || true)
+        if [[ -n "$existing_mtu" ]]; then
+            cur="$existing_mtu"
         fi
     fi
 
-    echo
-    echo "MTU for the Diretta NIC '${iface}':"
-    echo "  1) 1500   (standard)"
-    echo "  2) 9014   (jumbo — recommended; RTL8156 and most jumbo-capable NICs)"
-    echo "  3) 16128  (max — only if your Diretta target supports it)"
-    while [[ -z "$mtu" ]]; do
-        read -r -p "Choose [2]: " choice
-        case "${choice:-2}" in
-            1) mtu=1500 ;;
-            2) mtu=9014 ;;
-            3) mtu=16128 ;;
-            *) echo "Invalid choice." ;;
-        esac
-    done
+    # Keep existing value, or prompt to reconfigure.
+    if [[ -n "$cur" ]]; then
+        if ! ask_yes_no "Diretta NIC MTU already configured (MTUBytes=${cur} in ${canonical_file}). Reconfigure?" N; then
+            log_info "Keeping the existing MTU value for Diretta NIC (MTUBytes=${cur})."
+            # If we only know the value from a legacy file just migrated, we
+            # still need to write the canonical file with that value.
+            if [[ ! -f "$canonical_file" ]]; then
+                mtu="$cur"
+            else
+                return 0
+            fi
+        fi
+    fi
+
+    # Prompt for MTU if not carried over from the keep-path.
+    if [[ -z "$mtu" ]]; then
+        echo
+        echo "MTU for the Diretta NIC (MAC ${mac}):"
+        echo "  1) 1500   (standard)"
+        echo "  2) 9014   (jumbo — recommended; RTL8156 and most jumbo-capable NICs)"
+        echo "  3) 16128  (max — only if your Diretta target supports it)"
+        while [[ -z "$mtu" ]]; do
+            read -r -p "Choose [2]: " choice
+            case "${choice:-2}" in
+                1) mtu=1500 ;;
+                2) mtu=9014 ;;
+                3) mtu=16128 ;;
+                *) echo "Invalid choice." ;;
+            esac
+        done
+    fi
 
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would write ${link_file} with MTUBytes=${mtu}"
+        log_info "DRY-RUN: would write ${canonical_file} (MACAddress=${mac}, Name=eth-diretta, MTUBytes=${mtu})"
         return 0
     fi
 
     mkdir -p /etc/systemd/network
-    cat > "$link_file" <<EOF
+    cat > "$canonical_file" <<EOF
 ${tag}
+# Diretta NIC: stable name (eth-diretta) + MTU + hardware offloads off.
+# udev applies only the FIRST matching .link per device, so rename, MTU, and
+# offload tuning must live together in this single file. Type=ether excludes
+# virtual interfaces (bridge created by diretta-net-toggle clones this MAC
+# onto br0; without Type=ether the match would be ambiguous).
 [Match]
-OriginalName=${iface}
+MACAddress=${mac}
+Type=ether
 
 [Link]
+Name=eth-diretta
 MTUBytes=${mtu}
+# Hardware offloads disabled on the Diretta NIC: Diretta uses raw L2 frames,
+# and consumer-grade NICs sometimes corrupt those when offloads (segmentation,
+# generic/large receive) re-assemble or split packets. Cost is a slightly
+# higher CPU load on the Diretta path, fully absorbed by the isolated audio
+# core(s). Directives unsupported by a given driver are logged as warnings by
+# systemd-udevd and skipped — safe on any NIC.
+GenericSegmentationOffload=false
+TCPSegmentationOffload=false
+GenericReceiveOffload=false
+LargeReceiveOffload=false
 EOF
-    log_info "Wrote ${link_file} (MTUBytes=${mtu}). Applied by systemd-udevd at next boot — works under NetworkManager and systemd-networkd."
+    log_info "Wrote ${canonical_file} (MAC=${mac}, Name=eth-diretta, MTUBytes=${mtu}, offloads off). Applied by systemd-udevd at next boot (after 'sudo dracut -f' to refresh initramfs). Works under NetworkManager and systemd-networkd."
 }
 
 # --- Command execution with DRY_RUN support --------------------------------

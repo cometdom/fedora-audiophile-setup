@@ -136,54 +136,11 @@ fi
 # Ensure NetworkManager has a profile for the Diretta NIC (otherwise
 # slim2Diretta install.sh's "Configure network" step can't persist MTU
 # via nmcli — same root cause as DRUP install.sh).
-_s2d_ensure_nm_connection() {
-    local iface="$1"
-    is_service_active NetworkManager || return 0
-    if ! command -v nmcli >/dev/null 2>&1; then
-        log_warn "NM is active but nmcli is missing — cannot pre-create profile for ${iface}."
-        return 0
-    fi
-    # Count profiles named "diretta-<iface>" by UUID. Earlier wizard
-    # versions could create duplicates; recover by deleting any leftovers
-    # and recreating a single clean profile.
-    local -a our_uuids=()
-    local uuid
-    while IFS= read -r uuid; do
-        [[ -n "$uuid" ]] && our_uuids+=("$uuid")
-    done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null \
-        | awk -F: -v n="diretta-${iface}" '$2==n {print $1}')
-
-    if [[ ${#our_uuids[@]} -gt 1 ]]; then
-        log_warn "Found ${#our_uuids[@]} duplicate NM profiles named 'diretta-${iface}' — deleting all and recreating one clean."
-        for uuid in "${our_uuids[@]}"; do
-            run_cmd nmcli connection delete "$uuid"
-        done
-    elif [[ ${#our_uuids[@]} -eq 1 ]]; then
-        log_info "NM profile 'diretta-${iface}' already present (UUID ${our_uuids[0]}) — skipping."
-        return 0
-    fi
-
-    local bound
-    bound=$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | cut -d: -f2)
-    if [[ -n "$bound" && "$bound" != "--" ]]; then
-        log_info "NM profile already bound to ${iface}: '${bound}' — skipping."
-        return 0
-    fi
-
-    log_info "Creating minimal NM profile for ${iface} (link-local v4+v6, autoconnect)."
-    run_cmd nmcli connection add type ethernet \
-        ifname "$iface" \
-        con-name "diretta-${iface}" \
-        ipv4.method link-local \
-        ipv6.method link-local \
-        connection.autoconnect yes
-}
-
 # Persist the Diretta NIC MTU via a universal systemd-udevd .link drop-in
 # (works under NetworkManager AND systemd-networkd).
 ensure_diretta_mtu_link "$_s2d_diretta_iface"
 
-_s2d_ensure_nm_connection "$_s2d_diretta_iface"
+ensure_diretta_nm_connection "$_s2d_diretta_iface"
 
 # --- 5. Optional LMS server IP -------------------------------------------
 
@@ -278,12 +235,21 @@ _s2d_set_conf_var() {
     fi
 }
 
+# Translate the user-picked Diretta iface to its stable rename target
+# (eth-diretta) when /etc/systemd/network/10-diretta.link exists. stable_name_for
+# returns the iface unchanged when no .link matches, so this is a no-op for
+# hosts where stable naming wasn't set up.
+_s2d_diretta_iface_conf=$(stable_name_for "$_s2d_diretta_iface")
+if [[ "$_s2d_diretta_iface_conf" != "$_s2d_diretta_iface" ]]; then
+    log_info "Mapping Diretta NIC ${_s2d_diretta_iface} → ${_s2d_diretta_iface_conf} (stable name, applied at next boot)."
+fi
+
 log_info "Setting TARGET / TARGET_INTERFACE${_s2d_opts:+ / SLIM2DIRETTA_OPTS} in ${_S2D_CONF_FILE}"
 if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-    log_info "DRY-RUN: would set TARGET=1, TARGET_INTERFACE=${_s2d_diretta_iface}${_s2d_opts:+, SLIM2DIRETTA_OPTS=${_s2d_opts}}"
+    log_info "DRY-RUN: would set TARGET=1, TARGET_INTERFACE=${_s2d_diretta_iface_conf}${_s2d_opts:+, SLIM2DIRETTA_OPTS=${_s2d_opts}}"
 else
     _s2d_set_conf_var TARGET 1
-    _s2d_set_conf_var TARGET_INTERFACE "$_s2d_diretta_iface"
+    _s2d_set_conf_var TARGET_INTERFACE "$_s2d_diretta_iface_conf"
     if [[ -n "$_s2d_opts" ]]; then
         _s2d_set_conf_var SLIM2DIRETTA_OPTS "$_s2d_opts"
     fi
