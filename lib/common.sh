@@ -116,14 +116,20 @@ stable_name_for() {
     echo "$iface"
 }
 
-# ensure_diretta_mtu_link <iface> — persist the Diretta NIC MTU AND its
-# stable name (eth-diretta) via a SINGLE systemd-udevd .link drop-in
-# matched by MAC address. This is read by udevd at device coldplug,
-# BEFORE and INDEPENDENTLY of whichever network manager is active, so it
-# is the only MTU mechanism that works under BOTH NetworkManager and
-# systemd-networkd. (DRUP / slim2Diretta install.sh also prompt for MTU
-# and persist it via nmcli — NM-only, and a no-op/failure under networkd;
-# that duplicate prompt is harmless: the .link is what reliably applies.)
+# ensure_diretta_mtu_link <iface> — persist the Diretta NIC MTU, its
+# stable name (eth-diretta), AND its offload-off tuning via a SINGLE
+# systemd-udevd .link drop-in matched by MAC address. This is read by
+# udevd at device coldplug, BEFORE and INDEPENDENTLY of whichever
+# network manager is active, so it is the only place that works under
+# BOTH NetworkManager and systemd-networkd. (DRUP / slim2Diretta
+# install.sh also prompt for MTU and persist it via nmcli — NM-only,
+# and a no-op/failure under networkd; that duplicate prompt is
+# harmless: the .link is what reliably applies.)
+#
+# Offload disabling (gso/tso/gro/lro off): Diretta uses raw L2 frames
+# and consumer NICs sometimes mishandle them under hardware offloads.
+# Cost is minimal CPU added to the Diretta path, fully covered by the
+# isolated audio core(s). Always-on for the Diretta NIC; no user prompt.
 #
 # Why a single .link doing rename + MTU (and not two separate files):
 # systemd-udevd applies ONLY THE FIRST matching .link per device, in
@@ -226,10 +232,11 @@ ensure_diretta_mtu_link() {
     mkdir -p /etc/systemd/network
     cat > "$canonical_file" <<EOF
 ${tag}
-# Diretta NIC: stable name (eth-diretta) + MTU. udev applies only the FIRST
-# matching .link per device, so rename and MTU must live together here.
-# Type=ether excludes virtual interfaces (bridge created by diretta-net-toggle
-# clones this MAC onto br0; without Type=ether the match would be ambiguous).
+# Diretta NIC: stable name (eth-diretta) + MTU + hardware offloads off.
+# udev applies only the FIRST matching .link per device, so rename, MTU, and
+# offload tuning must live together in this single file. Type=ether excludes
+# virtual interfaces (bridge created by diretta-net-toggle clones this MAC
+# onto br0; without Type=ether the match would be ambiguous).
 [Match]
 MACAddress=${mac}
 Type=ether
@@ -237,8 +244,18 @@ Type=ether
 [Link]
 Name=eth-diretta
 MTUBytes=${mtu}
+# Hardware offloads disabled on the Diretta NIC: Diretta uses raw L2 frames,
+# and consumer-grade NICs sometimes corrupt those when offloads (segmentation,
+# generic/large receive) re-assemble or split packets. Cost is a slightly
+# higher CPU load on the Diretta path, fully absorbed by the isolated audio
+# core(s). Directives unsupported by a given driver are logged as warnings by
+# systemd-udevd and skipped — safe on any NIC.
+GenericSegmentationOffload=false
+TCPSegmentationOffload=false
+GenericReceiveOffload=false
+LargeReceiveOffload=false
 EOF
-    log_info "Wrote ${canonical_file} (MAC=${mac}, Name=eth-diretta, MTUBytes=${mtu}). Applied by systemd-udevd at next boot (after 'sudo dracut -f' to refresh initramfs). Works under NetworkManager and systemd-networkd."
+    log_info "Wrote ${canonical_file} (MAC=${mac}, Name=eth-diretta, MTUBytes=${mtu}, offloads off). Applied by systemd-udevd at next boot (after 'sudo dracut -f' to refresh initramfs). Works under NetworkManager and systemd-networkd."
 }
 
 # --- Command execution with DRY_RUN support --------------------------------
