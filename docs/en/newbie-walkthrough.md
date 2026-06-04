@@ -307,6 +307,8 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | Module | Prompt | Recommended answer |
 |---|---|---|
 | 02 system-tuning | `Use the -nosmt tuner variant?` | **N** (Enter) — keep Hyper-Threading on; the OS still pins audio threads correctly. |
+| 03 network-stack | `Set up stable names by MAC?` | **Y** (Enter) — renames your NICs to `eth-lan` and `eth-diretta` based on their MAC addresses. Future-proofs the host against any hardware change that would shift PCI enumeration (NIC swap, added PCIe card, GPU insert/remove on a host without an integrated GPU). If you decline, the wizard keeps the kernel-assigned `enpXsY` names and any later swap may require manual config edits. Takes effect at next boot. |
+| 03 network-stack | `Use these roles?` (auto-detected LAN/Diretta) | **Y** (Enter) if the displayed mapping looks right. The wizard pre-selects LAN = NIC with default route, Diretta = the other one (when you have exactly two Ethernet cards). Answer **N** to pick roles manually from a menu. |
 | 03 network-stack | `K) Keep NetworkManager / S) Switch to systemd-networkd / N) Skip` | **K** (Enter) — keeping NetworkManager is safer for first-time setups. |
 | 04 tmpfs-disk | `Mount /var/log and /var/tmp as tmpfs?` | **Y** (Enter) — zero disk writes during playback. |
 | 05 services-cleanup | `Disable firewalld?` | **Y** (Enter) — dedicated audio host on a trusted LAN. |

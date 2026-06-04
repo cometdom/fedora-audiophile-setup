@@ -308,6 +308,8 @@ Pour chaque question, la **valeur par défaut** (entre crochets, du type `[Y/n]`
 | Module | Question | Réponse recommandée |
 |---|---|---|
 | 02 system-tuning | `Use the -nosmt tuner variant?` | **N** (Entrée) — gardez l'Hyper-Threading activé ; le système épingle quand même correctement les threads audio. |
+| 03 network-stack | `Set up stable names by MAC?` | **Y** (Entrée) — renomme vos cartes réseau en `eth-lan` et `eth-diretta` à partir de leur adresse MAC. Met l'hôte à l'abri de tout changement matériel qui décalerait l'énumération PCI (remplacement de carte, ajout d'une carte PCIe, insertion/retrait d'une carte graphique sur un host sans GPU intégré). Si vous refusez, le wizard garde les noms `enpXsY` assignés par le noyau et tout changement matériel ultérieur peut nécessiter des édits manuels. Effectif au prochain démarrage. |
+| 03 network-stack | `Use these roles?` (LAN/Diretta auto-détectés) | **Y** (Entrée) si le mapping affiché est correct. Le wizard pré-sélectionne LAN = carte avec route par défaut, Diretta = l'autre (quand vous avez exactement deux cartes Ethernet). Répondez **N** pour choisir les rôles manuellement dans un menu. |
 | 03 network-stack | `K) Keep NetworkManager / S) Switch to systemd-networkd / N) Skip` | **K** (Entrée) — garder NetworkManager est plus sûr pour une première installation. |
 | 04 tmpfs-disk | `Mount /var/log and /var/tmp as tmpfs?` | **Y** (Entrée) — zéro écriture disque pendant la lecture. |
 | 05 services-cleanup | `Disable firewalld?` | **Y** (Entrée) — hôte audio dédié sur un LAN de confiance. |
