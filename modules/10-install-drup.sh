@@ -326,16 +326,32 @@ _drup_set_conf_var() {
     fi
 }
 
+# Translate the user-picked iface names to their stable rename targets
+# (eth-lan / eth-diretta) when a matching /etc/systemd/network/*.link drop-in
+# exists. This makes the wrapper config survive PCI re-enumeration even when
+# the user runs this module BEFORE the post-stable-naming reboot (kernel
+# still uses enpXsY, but the .link already promises eth-*). stable_name_for
+# returns the original iface unchanged when no .link matches, so this is a
+# no-op for hosts where stable naming wasn't set up.
+_drup_control_iface_conf=$(stable_name_for "$_drup_control_iface")
+_drup_diretta_iface_conf=$(stable_name_for "$_drup_diretta_iface")
+if [[ "$_drup_control_iface_conf" != "$_drup_control_iface" ]]; then
+    log_info "Mapping control NIC ${_drup_control_iface} → ${_drup_control_iface_conf} (stable name, applied at next boot)."
+fi
+if [[ "$_drup_diretta_iface_conf" != "$_drup_diretta_iface" ]]; then
+    log_info "Mapping Diretta NIC ${_drup_diretta_iface} → ${_drup_diretta_iface_conf} (stable name, applied at next boot)."
+fi
+
 log_info "Setting INTERFACE / TARGET_INTERFACE / TARGET in ${_DRUP_CONF_FILE}"
 if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-    log_info "DRY-RUN: would set INTERFACE=${_drup_control_iface}, TARGET_INTERFACE=$([[ "$_drup_control_iface" == "$_drup_diretta_iface" ]] && echo '<empty: single NIC>' || echo "${_drup_diretta_iface}"), TARGET=1"
+    log_info "DRY-RUN: would set INTERFACE=${_drup_control_iface_conf}, TARGET_INTERFACE=$([[ "$_drup_control_iface" == "$_drup_diretta_iface" ]] && echo '<empty: single NIC>' || echo "${_drup_diretta_iface_conf}"), TARGET=1"
 else
-    _drup_set_conf_var INTERFACE "$_drup_control_iface"
+    _drup_set_conf_var INTERFACE "$_drup_control_iface_conf"
     if [[ "$_drup_control_iface" == "$_drup_diretta_iface" ]]; then
         # Single-NIC: leave TARGET_INTERFACE empty so DRUP auto-detects.
         _drup_set_conf_var TARGET_INTERFACE ""
     else
-        _drup_set_conf_var TARGET_INTERFACE "$_drup_diretta_iface"
+        _drup_set_conf_var TARGET_INTERFACE "$_drup_diretta_iface_conf"
     fi
     _drup_set_conf_var TARGET 1
 fi

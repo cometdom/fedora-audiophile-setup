@@ -81,6 +81,41 @@ is_service_active() {
     systemctl is-active --quiet "$1" 2>/dev/null
 }
 
+# stable_name_for <iface> — print the stable rename target configured for
+# this NIC via a /etc/systemd/network/*.link drop-in that matches by MAC,
+# or print <iface> unchanged if no such .link exists.
+#
+# Works whether <iface> is the kernel-assigned name (enpXsY) or the
+# already-renamed name (eth-lan / eth-diretta), since /sys/class/net/<name>/
+# address always reflects the hardware MAC.
+#
+# Used by modules 10/11 (and downstream wrapper config writers) to make
+# /etc/default/diretta-renderer and /etc/default/slim2diretta reference
+# the stable names — so the config survives PCI re-enumeration even when
+# module 10/11 is run BEFORE the post-stable-naming reboot (i.e. when the
+# kernel still uses enpXsY but the .link files already promise eth-*).
+stable_name_for() {
+    local iface="$1"
+    local mac
+    mac=$(cat "/sys/class/net/${iface}/address" 2>/dev/null || true)
+    if [[ -z "$mac" ]]; then
+        echo "$iface"
+        return 0
+    fi
+    local f name=""
+    while IFS= read -r f; do
+        # Match the MAC line case-insensitively (systemd accepts either case).
+        if grep -qiE "^MACAddress=[[:space:]]*${mac}[[:space:]]*$" "$f" 2>/dev/null; then
+            name=$(grep -oP '^Name=\K\S+' "$f" 2>/dev/null | head -1)
+            if [[ -n "$name" ]]; then
+                echo "$name"
+                return 0
+            fi
+        fi
+    done < <(find /etc/systemd/network -maxdepth 1 -name '*.link' -type f 2>/dev/null)
+    echo "$iface"
+}
+
 # ensure_diretta_mtu_link <iface> — persist the Diretta NIC MTU AND its
 # stable name (eth-diretta) via a SINGLE systemd-udevd .link drop-in
 # matched by MAC address. This is read by udevd at device coldplug,

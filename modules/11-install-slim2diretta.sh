@@ -278,12 +278,21 @@ _s2d_set_conf_var() {
     fi
 }
 
+# Translate the user-picked Diretta iface to its stable rename target
+# (eth-diretta) when /etc/systemd/network/10-diretta.link exists. stable_name_for
+# returns the iface unchanged when no .link matches, so this is a no-op for
+# hosts where stable naming wasn't set up.
+_s2d_diretta_iface_conf=$(stable_name_for "$_s2d_diretta_iface")
+if [[ "$_s2d_diretta_iface_conf" != "$_s2d_diretta_iface" ]]; then
+    log_info "Mapping Diretta NIC ${_s2d_diretta_iface} → ${_s2d_diretta_iface_conf} (stable name, applied at next boot)."
+fi
+
 log_info "Setting TARGET / TARGET_INTERFACE${_s2d_opts:+ / SLIM2DIRETTA_OPTS} in ${_S2D_CONF_FILE}"
 if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-    log_info "DRY-RUN: would set TARGET=1, TARGET_INTERFACE=${_s2d_diretta_iface}${_s2d_opts:+, SLIM2DIRETTA_OPTS=${_s2d_opts}}"
+    log_info "DRY-RUN: would set TARGET=1, TARGET_INTERFACE=${_s2d_diretta_iface_conf}${_s2d_opts:+, SLIM2DIRETTA_OPTS=${_s2d_opts}}"
 else
     _s2d_set_conf_var TARGET 1
-    _s2d_set_conf_var TARGET_INTERFACE "$_s2d_diretta_iface"
+    _s2d_set_conf_var TARGET_INTERFACE "$_s2d_diretta_iface_conf"
     if [[ -n "$_s2d_opts" ]]; then
         _s2d_set_conf_var SLIM2DIRETTA_OPTS "$_s2d_opts"
     fi
