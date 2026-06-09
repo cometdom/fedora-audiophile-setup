@@ -96,7 +96,7 @@ sudo ./setup.sh --only kernel-rt
 - [ ] **v1.6+** — Spanish translation; finish translating the remaining guides to French
 - [ ] Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
 - [ ] Optional config-file mode for unattended provisioning
-- [ ] _separate sibling repo_ — Raspberry Pi / DietPi (ARM) audiophile setup
+- [ ] _separate sibling repo_ — Raspberry Pi 5 audiophile setup on **Fedora 44 ARM64** (vanilla PREEMPT_RT from the `@kernel-vanilla/stable` COPR — aarch64 builds confirmed working; 4-core isolation `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0`; DRUP build target `aarch64-linux-15k16` for the Pi 5's 16 KiB pages)
 
 ## License
 
