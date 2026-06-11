@@ -39,13 +39,30 @@ _kernel_check_internet() {
     exit 1
 }
 
-# Print the kernel-rt /boot vmlinuz (newest), or empty. Derived from RPM, not
-# the file name: vmlinuz is /boot/vmlinuz-<VERSION>-<RELEASE>.<ARCH> and
-# kernel-rt-core carries exactly that V-R-arch.
+# Print the kernel-rt /boot vmlinuz (newest), or empty. We ask the RPM which
+# file it actually installed (rpm -ql) instead of reconstructing the name from
+# V-R-A: the vanilla RT kernel's vmlinuz carries a localversion suffix the RPM
+# N-V-R-A lacks — RPM 7.0.7-300.vanilla.fc44.x86_64 but file
+# /boot/vmlinuz-7.0.7-300.vanilla.fc44.x86_64+rt. The reconstructed path didn't
+# exist, so this returned empty and `grubby --set-default` was never run; on
+# x86 that was masked because dnf's kernel-install hook happens to set the
+# newest (the +rt) kernel as default — but on hosts where it doesn't, the box
+# boots the stock kernel (seen on aarch64, and an x86 user who booted non-RT
+# until told to set it by hand).
 _kernel_find_vmlinuz() {
-    local kver v
-    kver=$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' "$_KR_CORE_PKG" 2>/dev/null \
-        | sort -V | tail -1 || true)
+    local nvra v kver
+    nvra=$(rpm -q "$_KR_CORE_PKG" 2>/dev/null | sort -V | tail -1 || true)
+    [[ -n "$nvra" ]] || return 0
+    # Prefer the /boot/vmlinuz the package owns.
+    v=$(rpm -ql "$nvra" 2>/dev/null | grep -m1 '^/boot/vmlinuz-' || true)
+    if [[ -n "$v" && -f "$v" ]]; then
+        echo "$v"
+        return 0
+    fi
+    # Fallback: derive the real kernel version (incl. the +rt localversion)
+    # from the /lib/modules/<kver> directory the package owns, then the
+    # conventional /boot path.
+    kver=$(rpm -ql "$nvra" 2>/dev/null | sed -n 's#^/lib/modules/\([^/]*\)/.*#\1#p' | sort -u | tail -1)
     [[ -n "$kver" ]] || return 0
     v="/boot/vmlinuz-${kver}"
     [[ -f "$v" ]] && echo "$v"
