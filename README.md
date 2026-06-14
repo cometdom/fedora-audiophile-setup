@@ -98,6 +98,18 @@ sudo ./setup.sh --only kernel-rt
 - [ ] Optional config-file mode for unattended provisioning
 - [ ] _separate sibling repo_ — Raspberry Pi 5 audiophile setup on **Fedora 44 ARM64** (vanilla PREEMPT_RT from the `@kernel-vanilla/stable` COPR — aarch64 builds confirmed working; 4-core isolation `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0`; DRUP build target `aarch64-linux-15k16` for the Pi 5's 16 KiB pages)
 
+## Optional companion — Lyrion Music Server (LMS)
+
+`extras/lyrion-fedora.sh` is an **optional** installer for [Lyrion Music Server](https://lyrion.org/) (formerly Logitech Media Server), contributed by tester **Auke**. It is **not** part of the wizard's main install — run it on its own:
+
+```bash
+sudo ./extras/lyrion-fedora.sh
+```
+
+LMS is a music **server** (library, scanning, transcoding, web UI on `:9000`). The audiophile-preferred topology runs it on a **separate box** and keeps this host a minimal player — co-locate it only if you don't have another server. It pairs naturally with the **slim2Diretta** player (module 11) for a self-contained server + player on one machine.
+
+The script was written and tested on Fedora **aarch64** (Raspberry Pi); on this **x86_64** host it is **experimental** — its download fallback and sox-resampling paths assume aarch64, so paste the correct `x86_64` `.rpm` URL when prompted and expect the optional sox feature to need adjusting. Reports welcome so a proper x86_64 pass can follow.
+
 ## License
 
 [MIT](LICENSE)
