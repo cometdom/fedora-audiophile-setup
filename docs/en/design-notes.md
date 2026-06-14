@@ -114,3 +114,7 @@ The companion guide `docs/en/fedora-43-minimal-install.md` covers the **pre-requ
 ## Origin
 
 Bootstrap session: 2026-05-14, branch `main`, initial commit. See `git log --reverse` to walk the history from the start.
+
+## Testers
+
+Several fixes in this codebase came from early testers of the [Raspberry Pi sibling](https://github.com/cometdom/fedora-rpi-audiophile-setup) on the Audiophile Style forum, where bugs in the shared logic surfaced first: **Auke** — Fedora's `zram-generator` swap persistence (and the ARM tuner `pipefail` abort, with patches); **ditusade** — the RT-kernel-default (`+rt` vmlinuz) bug; **Progman** — Pi 4 validation. See the README for details.
