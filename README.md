@@ -18,7 +18,7 @@ An interactive Bash wizard that, in a single run, applies all the system-level t
 - Disables `swap`, sets `vm.swappiness=0`
 - Disables unneeded services (bluetooth, cups, etc.)
 - Applies a `tuned` profile geared for latency
-- Optionally installs and configures DirettaRendererUPnP and/or slim2Diretta
+- Optionally installs and configures DirettaRendererUPnP, slim2Diretta and/or slim2UPnP (a Slimproto→UPnP bridge that pairs with DRUP for LMS)
 
 After a single reboot, your audio host is fully tuned and ready.
 
