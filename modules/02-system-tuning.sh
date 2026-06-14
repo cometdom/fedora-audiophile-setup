@@ -19,7 +19,13 @@
 
 set -euo pipefail
 
-readonly _TUNER_BASE_URL="https://raw.githubusercontent.com/cometdom/DirettaRendererUPnP/main"
+# Pinned to a specific known-good commit, NOT the moving 'main' branch: the
+# tuner is downloaded and executed at install time, so a broken upstream commit
+# would break every wizard run. Bump this SHA only after vetting on hardware.
+# e901c4f hardens detect_cpu_topology against pipefail+set -e aborts on ARM
+# (|| true on the x86-only /proc/cpuinfo greps) — verified on a Pi 5 by Auke.
+readonly _TUNER_COMMIT="e901c4f9168afa9dd62a908166f93b01011fa71d"
+readonly _TUNER_BASE_URL="https://raw.githubusercontent.com/cometdom/DirettaRendererUPnP/${_TUNER_COMMIT}"
 readonly _TUNER_REGULAR="diretta-renderer-tuner.sh"
 readonly _TUNER_NOSMT="diretta-renderer-tuner-nosmt.sh"
 readonly _TUNER_CACHE_DIR="/var/cache/audiophile-setup"
