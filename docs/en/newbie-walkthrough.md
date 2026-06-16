@@ -288,8 +288,8 @@ What do you want to do?
    2) 00 preflight            — verify hard pre-conditions...
    3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  14) 99 finalize             — sanity-check + offer reboot
-  15) Exit
+  15) 99 finalize             — sanity-check + offer reboot
+  16) Exit
 
 Choose [1]:
 ```
