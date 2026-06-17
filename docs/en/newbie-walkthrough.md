@@ -1,5 +1,8 @@
 # Newbie Walkthrough — Fedora 43/44 + audiophile setup, from zero
 
+> 🇫🇷 Cette page est aussi disponible en **[Français](../fr/newbie-walkthrough.md)** — ou en [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf).
+> 🇬🇧 PDF version of this English page: [newbie-walkthrough-en.pdf](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf).
+
 This guide takes you from an empty PC to a fully tuned audiophile playback host running [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta). No prior Linux experience required — every step has the exact command you need to type.
 
 **Time required:** about 2–3 hours total. Most of it is the kernel + FFmpeg + DRUP compilation, which runs unattended.
