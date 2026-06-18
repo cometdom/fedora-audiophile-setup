@@ -26,7 +26,13 @@ set -euo pipefail
 # ef025ef = set the kernel cmdline via grubby (Fedora/BLS) instead of editing
 # /etc/default/grub + grub2-mkconfig, which silently never applied the
 # CPU-isolation params on Fedora. Both found by tester Auke on a Pi 5.
-readonly _TUNER_COMMIT="ef025ef0910a55f442d976a54058380c2be0e8f0"
+# fa3ea43 (DRUP v2.5.4) = keep the systemd slice strict and reconcile the cpuset
+# at runtime from start-renderer.sh, so DRUP's --cpu-* pinning (incl. a
+# housekeeping core like CPU_OTHER=0) works without EINVAL and without
+# permanently relaxing isolation (no SMT-sibling leak on x86); the conflicting
+# ExecStartPost round-robin is dropped. Root cause + Pi 4 testing by
+# hoorna/Alfred, x86+SMT testing by Dominique.
+readonly _TUNER_COMMIT="fa3ea4329c8bb32f5ede0c47bb19f1467e433703"
 readonly _TUNER_BASE_URL="https://raw.githubusercontent.com/cometdom/DirettaRendererUPnP/${_TUNER_COMMIT}"
 readonly _TUNER_REGULAR="diretta-renderer-tuner.sh"
 readonly _TUNER_NOSMT="diretta-renderer-tuner-nosmt.sh"
