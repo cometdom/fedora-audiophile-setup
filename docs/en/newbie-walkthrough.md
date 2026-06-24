@@ -291,8 +291,9 @@ What do you want to do?
    2) 00 preflight            — verify hard pre-conditions...
    3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  15) 99 finalize             — sanity-check + offer reboot
-  16) Exit
+  15) 13 ram-mode             — RAM-mode: full-root-in-RAM via overlayfs or systemd.volatile
+  16) 99 finalize             — sanity-check + offer reboot
+  17) Exit
 
 Choose [1]:
 ```
@@ -327,6 +328,7 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 11 install-slim2diretta | `LMS server IP?` | Leave empty for auto-discovery, or type the LMS IP. |
 | 12 install-slim2upnp | `Install slim2UPnP?` | **Y** if you use LMS and want the LMS → slim2UPnP → DRUP chain (install DRUP too); it's a player that streams to a UPnP renderer. Otherwise **n**. |
 | 12 install-slim2upnp | `Build from source with Clang + LTO?` | **N** (Enter) — downloads a ready-made binary (fast). Answer **Y** only if you specifically want a source build. |
+| 13 ram-mode | `Choice [e/d/N]:` | **N** (Enter) for a first install — RAM mode is an optional post-setup optimization. Choose **E** later to enable it: **V** (volatile) puts `/var` in RAM only (lightest); **O** (overlayfs) loads the entire root into RAM (writes exist only in RAM and are lost on reboot — to make a permanent change: Disable, reboot, edit on disk, Enable again). The module reports headroom before asking; you need at least ~256 MiB free. |
 | 99 finalize | `Reboot now?` | **N** (Enter) for the first run — let's verify what's installed before rebooting. |
 
 The longest step by far is **10 install-drup**: it compiles FFmpeg from source. Plan on ~30 minutes during which the screen scrolls a lot of green checkmarks. That's normal.
@@ -370,6 +372,11 @@ ip link show
 ```
 
 Find your Diretta NIC (the one you picked at step 10) and confirm its MTU is `9014` (or whatever you chose).
+
+```bash
+# If you enabled RAM mode (module 13):
+findmnt -n -o FSTYPE /    # overlay (overlayfs mode) or xfs (volatile mode or disabled)
+```
 
 If anything is wrong, see [§17 Troubleshooting](#17-troubleshooting-common-issues) below.
 
