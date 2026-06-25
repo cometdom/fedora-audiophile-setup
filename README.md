@@ -5,7 +5,7 @@ Turn a clean **Fedora 43 or 44 minimal** install into a tuned audiophile playbac
 > 🆕 **First time installing Linux?** Read the step-by-step newbie walkthrough first — it takes you from empty mini-PC to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: 1.0.** All modules implemented and tested on Fedora 43 and 44 (x86_64). Production-ready for the supported scope.
+> **Status: v2.0.0** — Production-ready on Fedora 43/44 (x86_64). All modules implemented and tested.
 
 ## What it does
 
@@ -22,6 +22,7 @@ An interactive Bash wizard that, in a single run, applies all the system-level t
 - Disables unneeded services (bluetooth, cups, etc.)
 - Applies a `tuned` profile geared for latency
 - Optionally installs and configures DirettaRendererUPnP, slim2Diretta and/or slim2UPnP (a Slimproto→UPnP bridge that pairs with DRUP for LMS)
+- Optionally runs the **entire root filesystem from RAM** (module 13): full overlayfs mode via a custom dracut initramfs module (zero disk I/O during playback), or `systemd.volatile=state` for a lighter `/var`-only approach
 
 After a single reboot, your audio host is fully tuned and ready.
 
@@ -56,8 +57,8 @@ What do you want to do?
    2) 00 preflight            — verify Fedora 43 / x86_64 / Secure Boot OFF / IPv6
    3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  15) 99 finalize             — sanity check + offer reboot
-  16) Exit
+  16) 99 finalize             — sanity check + offer reboot
+  17) Exit
 
 Choose [1]:
 ```
@@ -93,13 +94,17 @@ sudo ./setup.sh --only kernel-rt
 - [x] **v1.3** — `diretta-net-toggle` companion tool: temporarily bridge LAN + Diretta NICs so the target is reachable from the LAN (firmware checks, etc.) without recabling, then switch back for listening
 - [x] **v1.4** — Module 06 gains an opt-in CPU max-frequency cap (`/etc/default/audiophile-cpu-states`, re-tunable without re-running the wizard) and always-on memory/MM jitter reducers (THP, KSM, NUMA balancing); walkthrough recommends BIOS-side CPU Boost off + OS→BIOS consolidation path for the max-freq cap
 - [x] **v1.5** — Stable interface naming by MAC (opt-in, default Y): NICs renamed to `eth-lan` / `eth-diretta` via udev `.link` drop-ins, surviving NIC swap, added PCIe card, and GPU insert/remove. Single canonical Diretta `.link` carrying rename + MTU + offload-off (gso/tso/gro/lro). `diretta-net-toggle` hardened with cache validation, actionable error messages when networkd is inactive, and a new `purge` subcommand for recovery from NetworkManager. Menu shows the module-file prefix (`NN`) next to each name
+- [x] **v1.6** — `extras/lyrion-fedora.sh` (LMS installer) made arch-aware: auto-resolves the correct download for both x86_64 and aarch64
+- [x] **v1.7** — Newbie walkthrough updated to cover slim2UPnP (module 12) prompts in the step-by-step table (EN + FR)
+- [x] **v1.8** — DRUP tuner re-pinned to a fixed upstream commit (grubby cmdline regression fix)
+- [x] **v1.9** — Wizard menu sample and documentation refreshed for module 12 (slim2UPnP); module described in guides
+- [x] **v2.0.0** — **RAM mode** (module 13): run the entire root filesystem from RAM via full overlayfs (custom dracut initramfs module, zero disk I/O during playback) or `systemd.volatile=state` (lightweight `/var`-only variant). Per-core CPU frequency tuning re-tunable at any time via `scripts/cpu-states-tune.sh`. Per-core DRUP poll-mode. Validated on ARM64 by Auke. Functional parity with the Raspberry Pi sibling repo.
 
 ### Planned
 
-- [ ] **v1.6+** — Spanish translation; finish translating the remaining guides to French
 - [ ] Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
 - [ ] Optional config-file mode for unattended provisioning
-- [ ] _separate sibling repo_ — Raspberry Pi 5 audiophile setup on **Fedora 44 ARM64** (vanilla PREEMPT_RT from the `@kernel-vanilla/stable` COPR — aarch64 builds confirmed working; 4-core isolation `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0`; DRUP build target `aarch64-linux-15k16` for the Pi 5's 16 KiB pages)
+- [ ] Spanish translation
 
 ## Optional companion — Lyrion Music Server (LMS)
 
