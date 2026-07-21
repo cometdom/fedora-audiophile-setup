@@ -5,7 +5,7 @@ Turn a clean **Fedora 43 or 44 minimal** install into a tuned audiophile playbac
 > 🆕 **First time installing Linux?** Read the step-by-step newbie walkthrough first — it takes you from empty mini-PC to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: v2.0.0** — Production-ready on Fedora 43/44 (x86_64). All modules implemented and tested.
+> **Status: v2.2.0** — Production-ready on Fedora 43/44 (x86_64). All modules implemented and tested.
 
 ## What it does
 
@@ -99,6 +99,8 @@ sudo ./setup.sh --only kernel-rt
 - [x] **v1.8** — DRUP tuner re-pinned to a fixed upstream commit (grubby cmdline regression fix)
 - [x] **v1.9** — Wizard menu sample and documentation refreshed for module 12 (slim2UPnP); module described in guides
 - [x] **v2.0.0** — **RAM mode** (module 13): run the entire root filesystem from RAM via full overlayfs (custom dracut initramfs module, zero disk I/O during playback) or `systemd.volatile=state` (lightweight `/var`-only variant). Per-core CPU frequency tuning re-tunable at any time via `scripts/cpu-states-tune.sh`. Per-core DRUP poll-mode. Validated on ARM64 by Auke. Functional parity with the Raspberry Pi sibling repo.
+- [x] **v2.1.0** — `99-finalize` reporting fixes: DRUP false-negative in the systemctl check, slim2UPnP detection added (with a binary fallback), extended RAM-mode live status.
+- [x] **v2.2.0** — **RAM-mode warning at wizard launch**: `setup.sh` now warns *before any action* when the running session discards writes on reboot (overlayfs: everything is lost; `systemd.volatile`: `/var` only), so a full install — or a `git pull` — can no longer evaporate silently at the next boot. Detection reads `/proc/cmdline` (the kernel actually running), not `grubby` (which reports the *next* boot). Reported by Auke.
 
 ### Planned
 
