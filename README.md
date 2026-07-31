@@ -120,6 +120,12 @@ LMS is a music **server** (library, scanning, transcoding, web UI on `:9000`). T
 
 Arch-aware: the LMS RPM is **noarch** (one package for every architecture), so the same auto-resolved download works on x86_64 and aarch64, and the only arch-specific bit (the bundled `sox` helper path, `Bin/<arch>-linux/`) is derived at runtime. Originally written/tested on aarch64; an x86_64 confirming run on real hardware is welcome.
 
+## Versioning
+
+Releases follow [semver](https://semver.org/) (`vMAJOR.MINOR.PATCH`) and are marked with **annotated** git tags (`git tag -a`).
+
+**A published tag is never rewritten or force-moved.** Once `vX.Y.Z` is pushed, it points at that commit forever — safe to pin against in downstream projects, packaging, or CI.
+
 ## License
 
 [MIT](LICENSE)
