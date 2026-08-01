@@ -77,6 +77,28 @@ Power-user shortcut: skip the menu and re-run a single module by name:
 sudo ./setup.sh --only kernel-rt
 ```
 
+### Unattended mode
+
+For scripted installs — a kickstart `%post`, CI, or fleet provisioning — the whole wizard can run without a TTY:
+
+```bash
+sudo ./setup.sh --unattended
+sudo ./setup.sh --unattended --answers my-answers.env
+```
+
+Every prompt takes its default; an answers file overrides any of them through `UA_<KEY>` variables (one per prompt — the full list, with each prompt's default, is in [`extras/answers-example.env`](extras/answers-example.env)):
+
+```bash
+# my-answers.env — headless appliance: RAM mode on, no Diretta apps
+UA_RAM_MODE_ACTION=e
+UA_RAM_MODE_STRATEGY=V
+UA_RAM_MODE_ENABLE=Y
+UA_DRUP_INSTALL=N
+UA_S2D_INSTALL=N
+```
+
+`--dry-run --unattended` previews the whole run, answers included. An invalid answer that a prompt loop keeps rejecting aborts the run (fail-fast) rather than looping forever.
+
 ## Documentation
 
 - **[Newbie walkthrough](docs/en/newbie-walkthrough.md)** — start here if you've never installed Linux. Goes from empty mini-PC to first listening test, no prior knowledge assumed. (**Français :** [guide pas à pas pour débutant](docs/fr/newbie-walkthrough.md))
