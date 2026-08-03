@@ -5,7 +5,7 @@ Turn a clean **Fedora 43 or 44 minimal** install into a tuned audiophile playbac
 > 🆕 **First time installing Linux?** Read the step-by-step newbie walkthrough first — it takes you from empty mini-PC to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: v2.3.0** — Production-ready on Fedora 43/44 (x86_64). All modules implemented and tested.
+> **Status: v2.3.2** — Production-ready on Fedora 43/44 (x86_64). All modules implemented and tested.
 
 ## What it does
 
@@ -124,6 +124,8 @@ UA_S2D_INSTALL=N
 - [x] **v2.1.0** — `99-finalize` reporting fixes: DRUP false-negative in the systemctl check, slim2UPnP detection added (with a binary fallback), extended RAM-mode live status.
 - [x] **v2.2.0** — **RAM-mode warning at wizard launch**: `setup.sh` now warns *before any action* when the running session discards writes on reboot (overlayfs: everything is lost; `systemd.volatile`: `/var` only), so a full install — or a `git pull` — can no longer evaporate silently at the next boot. Detection reads `/proc/cmdline` (the kernel actually running), not `grubby` (which reports the *next* boot). Reported by Auke.
 - [x] **v2.3.0** — **Unattended mode** (`--unattended`, `--answers`): the entire wizard runs without a TTY, every prompt driven by `UA_<KEY>` environment variables. Enables scripted appliance builds, kickstart `%post`, and CI provisioning. `extras/answers-example.env` lists all keys with their defaults. Contributed by Bertrand Clech (renesenses).
+- [x] **v2.3.1** — RAM-mode disable bug fix: id-based BLS targeting fixes `Disable` sometimes leaving `audiophile.overlay=1` in the boot cmdline (ambiguous `grubby --update-kernel=DEFAULT` resolution when the recovery entry shares a kernel path). The module now reads `saved_entry` from grubenv, edits the BLS entry directly, and verifies every add/remove. A reboot prompt is offered immediately after disable. Reported and fixed by Auke.
+- [x] **v2.3.2** — RAM-mode preflight `/boot` space check: `dracut -f` briefly needs room for the old *and* new initramfs at once (it writes a `.tmp` file next to the existing image before replacing it) — a small `/boot` with several kernels retained can run out mid-rebuild with a cryptic zstd "No space left on device" error. The module now checks free space before calling dracut and fails with an actionable message instead. Reported by hd3291.
 
 ### Planned
 
