@@ -105,6 +105,7 @@ UA_S2D_INSTALL=N
 - [Fedora 43 minimal install (custom)](docs/en/fedora-43-minimal-install.md) — terser install reference.
 - [Post-install tuning reference](docs/en/post-install-tuning.md) — what each module does, and why.
 - [Diretta NIC toggle](docs/en/diretta-net-toggle.md) — companion tool (`scripts/diretta-net-toggle.sh`) to temporarily bridge the LAN and Diretta NICs so the target is reachable from the LAN (e.g. to check/update its firmware) without recabling, then switch back for listening. systemd-networkd only. (**Français :** [bascule NIC Diretta](docs/fr/diretta-net-toggle.md))
+- [Unattended answers contract](docs/en/unattended-answers-contract.md) — the `UA_<KEY>` stability guarantee for anyone automating `setup.sh --unattended` (kickstart, CI, or a GUI/web frontend).
 
 ## Roadmap
 
