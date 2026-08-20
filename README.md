@@ -5,7 +5,7 @@ Turn a clean **Fedora 43 or 44 minimal** install into a tuned audiophile playbac
 > 🆕 **First time installing Linux?** Read the step-by-step newbie walkthrough first — it takes you from empty mini-PC to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: v2.4.0** — Production-ready on Fedora 43/44 (x86_64). All modules implemented and tested.
+> **Status: v2.4.1** — Production-ready on Fedora 43/44 (x86_64). All modules implemented and tested.
 
 ## What it does
 
@@ -129,6 +129,7 @@ UA_S2D_INSTALL=N
 - [x] **v2.3.2** — RAM-mode preflight `/boot` space check: `dracut -f` briefly needs room for the old *and* new initramfs at once (it writes a `.tmp` file next to the existing image before replacing it) — a small `/boot` with several kernels retained can run out mid-rebuild with a cryptic zstd "No space left on device" error. The module now checks free space before calling dracut and fails with an actionable message instead. Reported by hd3291.
 - [x] **v2.3.3** — Module 04's optional `/var/tmp` tmpfs (256M) starved dracut's own initramfs build directory on every subsequent kernel update — the same cryptic "No space left on device" as v2.3.2, but from a different cause: plenty of room on `/boot`, none in dracut's scratch space. Now redirects dracut's `tmpdir` to `/tmp` (not resized by this repo) alongside the `/var/tmp` tmpfs entry. Diagnosed live on Dominique's TuneOS box.
 - [x] **v2.4.0** — RAM-mode gains a **Persistent paths** option (module 13, new `P` menu choice): bind-mount an app's mutable state from `/home` (untouched by either RAM-mode strategy) onto the path it actually expects, so it survives reboots even though `/var` — or all of `/` under overlay — is otherwise wiped every time. Auto-detects installed apps and offers two verified presets (Lyrion Music Server, Tune Server's self-updating `/opt/tune`), migrates existing data on first enable, and a symmetric removal restores it. Independent of the Enable/Disable choice. Inspired by a HiFi-forum member's manual LMS bind-mount setup; validated end-to-end on real hardware (add, reboot-survival, remove/restore) — one stdin-redirection bug in the removal prompt found and fixed along the way.
+- [x] **v2.4.1** — Newbie walkthrough (EN + FR) updated to cover v2.4.0's `P` (Persistent paths) prompt for module 13.
 
 ### Planned
 
