@@ -133,10 +133,36 @@ You now see the **Installation Summary** — the hub from which you configure ea
 Click **Installation Destination**.
 
 - Select the internal SSD (NOT the USB stick — the USB is the installer source).
-- Storage configuration: **Automatic**.
-- Click **Done**. If prompted to confirm, accept.
+- Storage configuration: **Custom** (not Automatic — see the box below).
+- Click **Done**.
 
-![Anaconda Installation Destination — internal SSD, Automatic partitioning](../images/en/05-anaconda-destination.jpg)
+![Anaconda Installation Destination — internal SSD, Custom storage configuration](../images/en/05b-anaconda-destination.png)
+
+> **Why Custom instead of Automatic?** Fedora Server's Automatic partitioning creates a single partition for `/`, consuming nearly the whole disk — no separate `/home`. This wizard's RAM-mode module (covered later) can wrap the entire root filesystem `/` in ephemeral RAM storage: if `/home` isn't its own mount point, anything living there (your own files, or app data such as Lyrion Music Server or Tune Server if you protect it via the "Persistent paths" option) silently vanishes on the next reboot. The few extra clicks below to carve out a separate `/home` fix this permanently, with zero risk since the disk is still blank at this point.
+
+You land on the **Manual Partitioning** screen, empty at first.
+
+![Anaconda Manual Partitioning — empty screen, no mount points created yet](../images/en/05c-anaconda-destination.png)
+
+Click **"Click here to create them automatically"** to generate the base partitions (`/`, `/boot`, `/boot/efi`).
+
+![Base partitions auto-created — / consumes almost all available space](../images/en/05d-anaconda-destination.png)
+
+Anaconda assigned everything to `/` — almost no free space is left. Click the `/` row (`fedora-root`) on the left, reduce its **Desired Capacity** to free up room for `/home` (e.g. 10 GiB on a 20 GiB test disk — on a real disk, adjust so `/` has enough while leaving the rest for `/home`), click **Update Settings**, then click the **"+"** button at the bottom of the left-hand list to add a new mount point.
+
+![/ capacity reduced to 10 GiB, hovering the add-mount-point button](../images/en/05f-anaconda-destination.png)
+
+In the dialog, choose `/home` as the mount point, enter the desired capacity (the space you just freed), then click **"Add mount point"**.
+
+![Add a New Mount Point dialog — /home](../images/en/05g-anaconda-destination.png)
+
+`/home` now appears as its own mount point (under "DATA"), alongside `/`, `/boot` and `/boot/efi` (under "SYSTEM").
+
+![/home created as a separate mount point, alongside / /boot /boot/efi](../images/en/05h-anaconda-destination.png)
+
+Click **Done**. Anaconda shows a summary of the pending changes — confirm it matches what you configured (the `/home` creation included, further down the list), then click **"Accept Changes"**.
+
+![Summary of changes before applying, including /home creation](../images/en/05j-anaconda-destination.png)
 
 ### 5.3 Software selection — CRITICAL
 

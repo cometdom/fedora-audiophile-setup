@@ -134,10 +134,40 @@ Vous voyez maintenant le **Résumé de l'installation** — le tableau de bord d
 Cliquez sur **Destination de l'installation**.
 
 - Sélectionnez le SSD interne (PAS la clé USB — la clé est la source de l'installeur).
-- Configuration du stockage : **Automatique**.
-- Cliquez sur **Terminé**. Si une confirmation est demandée, acceptez.
+- Configuration du stockage : **Personnalisée** (pas Automatique — voir l'encadré ci-dessous).
+- Cliquez sur **Terminé**.
 
-![Destination de l'installation d'Anaconda — SSD interne, partitionnement Automatique](../images/fr/05-anaconda-destination.jpg)
+![Destination de l'installation d'Anaconda — SSD interne, configuration du stockage Personnalisée](../images/fr/05b-anaconda-destination.png)
+
+> **Pourquoi Personnalisée plutôt qu'Automatique ?** Le partitionnement Automatique de Fedora Server crée une seule partition pour `/`, qui occupe presque tout le disque — sans `/home` séparé. Or le module RAM-mode de ce wizard (vu plus loin) peut envelopper toute la racine `/` dans un stockage RAM éphémère : si `/home` n'est pas un point de montage à part, tout ce qui s'y trouve (vos propres fichiers, les données d'applis comme Lyrion Music Server ou Tune Server si vous les protégez via l'option "Persistent paths") disparaît au redémarrage suivant, silencieusement. Les quelques clics ci-dessous pour créer un `/home` séparé règlent ça définitivement, sans aucun risque puisque le disque est encore vierge à ce stade.
+
+Vous arrivez sur l'écran **Partitionnement manuel**, vide au départ.
+
+![Partitionnement manuel d'Anaconda — écran vide, aucun point de montage créé](../images/fr/05c-anaconda-destination.png)
+
+Cliquez sur **« Cliquez ici pour les créer automatiquement »** pour générer les partitions de base (`/`, `/boot`, `/boot/efi`).
+
+![Partitions de base créées automatiquement — / occupe presque tout l'espace disponible](../images/fr/05d-anaconda-destination.png)
+
+Anaconda a tout attribué à `/` — il ne reste presque plus d'espace libre. Cliquez sur la ligne `/` (`fedora-root`) à gauche, réduisez la **Capacité souhaitée** pour libérer de la place pour `/home` (par exemple 10 Gio sur un disque de test de 20 Gio — sur un vrai disque, ajustez en gardant assez pour `/` et en réservant le reste à `/home`), puis cliquez sur **Mise à jour des paramètres**.
+
+![Capacité de / réduite pour libérer de l'espace](../images/fr/05e-anaconda-destination.png)
+
+Cliquez sur le bouton **« + »** en bas de la liste de gauche pour ajouter un nouveau point de montage.
+
+![Survol du bouton d'ajout de point de montage](../images/fr/05f-anaconda-destination.png)
+
+Dans la boîte de dialogue, choisissez `/home` comme point de montage, indiquez la capacité souhaitée (le reste de l'espace libéré), puis cliquez sur **« Ajouter un point de montage »**.
+
+![Boîte de dialogue Ajouter un nouveau point de montage — /home](../images/fr/05g-anaconda-destination.png)
+
+`/home` apparaît maintenant comme point de montage séparé (groupe « DONNÉES »), à côté de `/`, `/boot` et `/boot/efi` (groupe « SYSTÈME »).
+
+![/home créé comme point de montage séparé, à côté de / /boot /boot/efi](../images/fr/05h-anaconda-destination.png)
+
+Cliquez sur **Terminé**. Anaconda affiche un résumé des changements à venir — vérifiez qu'il correspond à ce que vous avez configuré (création de `/home` comprise, plus bas dans la liste), puis cliquez sur **« Accepter les changements »**.
+
+![Résumé des changements avant application, incluant la création de /home](../images/fr/05j-anaconda-destination.png)
 
 ### 5.3 Sélection de logiciels (CRITIQUE)
 
