@@ -233,6 +233,22 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
         log_info "Will pass LLVM=1 to ./install.sh."
     fi
 
+    # Opt-in GCC16-built SDK static lib (see resolve_diretta_gcc16_variant in
+    # lib/common.sh for the full rationale). Off by default: the GCC15 build
+    # is what years of field use have proven; GCC16 is a single reported
+    # data point so far. Only offered when a matching .a actually exists in
+    # this SDK for this CPU — never a guessed/unverified name.
+    _drup_arch_prefix=""
+    if ask_yes_no "Try the GCC16-built Diretta SDK variant (reported to improve sound quality, experimental)?" N DRUP_SDK_GCC16; then
+        _drup_gcc16_variant="$(resolve_diretta_gcc16_variant make "$_drup_dir" "$_drup_sdk")"
+        if [[ -n "$_drup_gcc16_variant" ]]; then
+            _drup_arch_prefix="ARCH_NAME=${_drup_gcc16_variant} "
+            log_info "Will pass ARCH_NAME=${_drup_gcc16_variant} to ./install.sh."
+        else
+            log_warn "No GCC16 SDK variant available for this CPU/SDK — staying on the default GCC15 build."
+        fi
+    fi
+
     log_warn "About to run DRUP ./install.sh as user '${_drup_user}'."
     log_warn "It compiles FFmpeg from source — expect ~30 minutes. Answer its prompts."
     # Known upstream bug: install.sh's "Configure firewall to allow UPnP
@@ -244,7 +260,7 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
         log_warn "Answering Y aborts install.sh (upstream bug)."
     fi
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would execute as ${_drup_user}: cd ${_drup_dir} && ${_drup_llvm_prefix}./install.sh"
+        log_info "DRY-RUN: would execute as ${_drup_user}: cd ${_drup_dir} && ${_drup_arch_prefix}${_drup_llvm_prefix}./install.sh"
     else
         # Direct exec (no run_cmd / tee pipe) so install.sh keeps its TTY.
         # -i = login shell so PATH/HOME are clean for the user. Temporarily
@@ -252,7 +268,7 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
         # similar) doesn't kill our wizard — we judge success by whether
         # the binary was produced.
         set +e
-        sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ${_drup_llvm_prefix}./install.sh"
+        sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ${_drup_arch_prefix}${_drup_llvm_prefix}./install.sh"
         _drup_rc=$?
         set -e
         if [[ ! -f "$_drup_binary" ]]; then

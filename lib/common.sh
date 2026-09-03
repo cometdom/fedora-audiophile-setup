@@ -449,6 +449,69 @@ EOF
     log_info "Wrote ${canonical_file} (MAC=${mac}, Name=eth-diretta, MTUBytes=${mtu}, offloads off). Applied by systemd-udevd at next boot (after 'sudo dracut -f' to refresh initramfs). Works under NetworkManager and systemd-networkd."
 }
 
+# resolve_diretta_gcc16_variant <make|cmake> <source_dir> <sdk_dir>
+#
+# Diretta SDK v149+ ships each arch variant built with BOTH GCC15 (proven,
+# still the default) and GCC16 (newer — sheviks reported a measurable sound
+# quality improvement on his setup, independent of whichever compiler builds
+# DRUP/slim2Diretta itself; see slim2diretta#10 and the DRUP CHANGELOG entry
+# it was ported from).
+#
+# Deliberately does NOT reimplement CPU detection: it asks the project's OWN
+# build system what it would auto-select today (the GCC15 baseline name),
+# via a real `make show-arch` / `cmake` configure-only run against this
+# exact source tree — not a guess. That detection has already had one real
+# bug (a Zen3/Zen2 CPU misdetected as Zen4 → SIGILL, fixed upstream in
+# DirettaRendererUPnP); duplicating the logic here would only reopen the
+# same class of risk.
+#
+# The "15" -> "16" name swap is confirmed safe ONLY for the plain x64
+# v2/v3/v4/zen4 shapes (x64-linux-15v3 -> x64-linux-16v3, etc. — confirmed
+# in both projects' CHANGELOGs). aarch64 does NOT follow the same rule
+# (slim2diretta#10: the 4K-page "aarch64-linux-15" variant has no plain
+# name-only GCC16 equivalent) — until that mapping is confirmed, this
+# returns empty on aarch64/riscv64 rather than guess a name that doesn't
+# exist.
+#
+# Prints the resolved variant name on stdout ONLY if a matching .a file is
+# actually present in the SDK — never a name it hasn't verified. Prints
+# nothing otherwise (with the reason on stderr via log_info, so it never
+# pollutes a caller doing `x=$(resolve_diretta_gcc16_variant ...)`).
+resolve_diretta_gcc16_variant() {
+    local mechanism="$1" src_dir="$2" sdk_dir="$3"
+    local base_variant candidate
+
+    case "$mechanism" in
+        make)
+            base_variant="$(cd "$src_dir" && DIRETTA_SDK_PATH="$sdk_dir" make show-arch 2>/dev/null \
+                | awk -F': *' '/^SDK variant:/{print $2}')"
+            ;;
+        cmake)
+            local _tmp_build
+            _tmp_build="$(mktemp -d)"
+            base_variant="$(DIRETTA_SDK_PATH="$sdk_dir" cmake -S "$src_dir" -B "$_tmp_build" 2>&1 \
+                | sed -n 's/^-- Variant: //p')"
+            rm -rf "$_tmp_build"
+            ;;
+        *)
+            log_error "resolve_diretta_gcc16_variant: unknown mechanism '${mechanism}'" >&2
+            return 1
+            ;;
+    esac
+
+    if [[ ! "$base_variant" =~ ^x64-linux-15(v2|v3|v4|zen4)$ ]]; then
+        log_info "GCC16 SDK variant not offered: '${base_variant:-<indetectable>}' isn't a plain x64 v2/v3/v4/zen4 shape (aarch64/riscv64 naming isn't a simple 15->16 swap — see slim2diretta#10)." >&2
+        return 0
+    fi
+
+    candidate="${base_variant/-15/-16}"
+    if [[ -f "${sdk_dir}/lib/libDirettaHost_${candidate}.a" ]]; then
+        echo "$candidate"
+    else
+        log_info "GCC16 SDK variant not offered: no ${sdk_dir}/lib/libDirettaHost_${candidate}.a in this SDK — keeping the GCC15 build (${base_variant})." >&2
+    fi
+}
+
 # --- Command execution with DRY_RUN support --------------------------------
 
 # run_cmd <cmd...> — execute (or echo if DRY_RUN=1) a command, logging stdout/stderr.

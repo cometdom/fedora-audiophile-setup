@@ -204,6 +204,21 @@ if [[ "$_s2d_run_install" -eq 1 ]]; then
         log_info "Will pass LLVM=1 to ./install.sh."
     fi
 
+    # Opt-in GCC16-built SDK static lib — same rationale as module 10's DRUP
+    # install (see resolve_diretta_gcc16_variant in lib/common.sh). Off by
+    # default, only offered when a matching .a actually exists for this
+    # CPU/SDK.
+    _s2d_arch_prefix=""
+    if ask_yes_no "Try the GCC16-built Diretta SDK variant (reported to improve sound quality, experimental)?" N S2D_SDK_GCC16; then
+        _s2d_gcc16_variant="$(resolve_diretta_gcc16_variant cmake "$_s2d_dir" "$_s2d_sdk")"
+        if [[ -n "$_s2d_gcc16_variant" ]]; then
+            _s2d_arch_prefix="ARCH_NAME=${_s2d_gcc16_variant} "
+            log_info "Will pass ARCH_NAME=${_s2d_gcc16_variant} to ./install.sh."
+        else
+            log_warn "No GCC16 SDK variant available for this CPU/SDK — staying on the default GCC15 build."
+        fi
+    fi
+
     log_warn "About to run slim2Diretta ./install.sh as user '${_s2d_user}'."
     log_warn "Answer its interactive prompts (codec selection menu, etc.)."
     # Same upstream firewall caveat as DRUP — if firewalld is off, the
@@ -214,12 +229,12 @@ if [[ "$_s2d_run_install" -eq 1 ]]; then
         log_warn "Answering Y aborts install.sh (upstream bug)."
     fi
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would execute as ${_s2d_user}: cd ${_s2d_dir} && ${_s2d_llvm_prefix}./install.sh"
+        log_info "DRY-RUN: would execute as ${_s2d_user}: cd ${_s2d_dir} && ${_s2d_arch_prefix}${_s2d_llvm_prefix}./install.sh"
     else
         # Direct exec; capture rc so an install.sh hiccup doesn't kill us.
         # Success = the binary at /usr/local/bin/slim2diretta exists.
         set +e
-        sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ${_s2d_llvm_prefix}./install.sh"
+        sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ${_s2d_arch_prefix}${_s2d_llvm_prefix}./install.sh"
         _s2d_rc=$?
         set -e
         if [[ ! -x "$_s2d_binary" ]]; then
